@@ -6,6 +6,7 @@ import { AppointmentsTable } from './components/AppointmentsTable';
 import { AvailabilityViewer } from './components/AvailabilityViewer';
 import { VoiceCallModal } from './components/VoiceCallModal';
 import { api } from './services/api';
+import { wsClient } from './services/websocket';
 import type { Doctor, Appointment, AvailabilitySlot, DashboardStats } from './types';
 
 export function App() {
@@ -63,6 +64,24 @@ export function App() {
 
   useEffect(() => {
     loadInitialData();
+
+    // Connect WebSocket and listen for live booking and cancellation events
+    wsClient.connect();
+
+    const unsubBooked = wsClient.on('appointment_booked', () => {
+      handleRefreshAppointments();
+      loadAvailability();
+    });
+
+    const unsubCancelled = wsClient.on('appointment_cancelled', () => {
+      handleRefreshAppointments();
+      loadAvailability();
+    });
+
+    return () => {
+      unsubBooked();
+      unsubCancelled();
+    };
   }, []);
 
   useEffect(() => {

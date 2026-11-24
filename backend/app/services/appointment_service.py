@@ -17,6 +17,7 @@ from app.models.doctor import Doctor
 from app.repositories.doctor_repository import DoctorRepository
 from app.repositories.appointment_repository import AppointmentRepository
 from app.services.availability_service import AvailabilityService
+from app.core.websocket_manager import ws_manager
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,7 @@ class AppointmentService:
                 alternatives=alternatives,
             )
 
-        return {
+        booking_payload = {
             "status": "confirmed",
             "booking_id": saved_appointment.id,
             "patient_phone_number": e164_phone,
@@ -164,6 +165,11 @@ class AppointmentService:
                 f"{appointment_date.strftime('%A, %B %d, %Y')} at {slot_str}."
             ),
         }
+
+        # Broadcast real-time booking event to connected dashboard clients
+        ws_manager.broadcast_sync("appointment_booked", booking_payload)
+
+        return booking_payload
 
     def cancel_appointment(
         self,
@@ -257,7 +263,7 @@ class AppointmentService:
         # Execute cancellation
         cancelled_app = self.appointment_repo.cancel(target_app)
 
-        return {
+        cancellation_payload = {
             "status": "cancelled",
             "appointment_id": cancelled_app.id,
             "patient_phone_masked": mask_phone_number(e164_phone),
@@ -270,3 +276,8 @@ class AppointmentService:
                 f"{cancelled_app.appointment_date} has been successfully cancelled."
             ),
         }
+
+        # Broadcast real-time cancellation event to connected dashboard clients
+        ws_manager.broadcast_sync("appointment_cancelled", cancellation_payload)
+
+        return cancellation_payload
