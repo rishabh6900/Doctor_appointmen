@@ -46,7 +46,8 @@ async def create_voice_pipeline_session(
     # 1. Initialize WebRTC Peer Connection and generate Answer
     webrtc_conn = SmallWebRTCConnection()
     await webrtc_conn.initialize(sdp=sdp_offer, type="offer")
-    sdp_answer = await webrtc_conn.get_answer()
+    answer_dict = webrtc_conn.get_answer()
+    sdp_answer = answer_dict["sdp"] if isinstance(answer_dict, dict) else str(answer_dict)
 
     # 2. Configure SmallWebRTCTransport
     transport_params = TransportParams(
