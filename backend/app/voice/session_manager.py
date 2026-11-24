@@ -61,6 +61,14 @@ class VoiceSessionManager:
         """Retrieve active session by ID."""
         return self.sessions.get(session_id)
 
+    def get_or_create_session(self, session_id: Optional[str] = None) -> VoiceSession:
+        """Retrieve existing session or instantiate a new one."""
+        if session_id and session_id in self.sessions:
+            session = self.sessions[session_id]
+            session.touch()
+            return session
+        return self.create_session(session_id)
+
     async def end_session(self, session_id: str):
         """Cleanly terminate and unregister a voice session."""
         session = self.sessions.get(session_id)

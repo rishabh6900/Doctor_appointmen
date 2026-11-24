@@ -12,12 +12,21 @@ import {
   Sparkles,
   Bot,
   User as UserIcon,
+  Send,
+  Loader2,
+  Volume2,
 } from 'lucide-react';
 
 interface VoiceCallModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAppointmentUpdated: () => void;
+}
+
+// Support for webkitSpeechRecognition
+interface IWindow extends Window {
+  webkitSpeechRecognition?: any;
+  SpeechRecognition?: any;
 }
 
 export const VoiceCallModal = ({
@@ -27,6 +36,10 @@ export const VoiceCallModal = ({
 }: VoiceCallModalProps) => {
   const [callState, setCallState] = useState<CallState>('idle');
   const [isMuted, setIsMuted] = useState(false);
+  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [interimText, setInterimText] = useState('');
+  const [typedInput, setTypedInput] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<CallTranscriptMessage[]>([]);
   const [callDuration, setCallDuration] = useState(0);
@@ -38,13 +51,15 @@ export const VoiceCallModal = ({
   const sessionIdRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const isCallActiveRef = useRef(false);
 
   // Auto-scroll transcript
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [transcripts]);
+  }, [transcripts, interimText]);
 
   // Duration timer
   useEffect(() => {
@@ -66,14 +81,152 @@ export const VoiceCallModal = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Speak assistant response aloud using Web Speech Synthesis
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // cancel any ongoing speech
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.lang = 'en-US';
+
+      // Pick natural English voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find((v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha')));
+      if (preferred) utterance.voice = preferred;
+
+      utterance.onstart = () => setIsAssistantSpeaking(true);
+      utterance.onend = () => setIsAssistantSpeaking(false);
+      utterance.onerror = () => setIsAssistantSpeaking(false);
+
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Handle sending a user utterance (from speech or typed) to backend
+  const handleUserMessage = async (userText: string) => {
+    const cleanText = userText.trim();
+    if (!cleanText || isProcessing) return;
+
+    const userMsg: CallTranscriptMessage = {
+      id: Math.random().toString(),
+      sender: 'user',
+      text: cleanText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    };
+
+    setTranscripts((prev) => [...prev, userMsg]);
+    setInterimText('');
+    setTypedInput('');
+    setIsProcessing(true);
+
+    try {
+      // Build conversation history
+      const history = transcripts.slice(-6).map((t) => ({
+        role: t.sender === 'user' ? 'user' : 'model',
+        text: t.text,
+      }));
+
+      const res = await api.sendVoiceInteract(cleanText, sessionIdRef.current || undefined, history);
+      sessionIdRef.current = res.session_id;
+
+      const aiMsg: CallTranscriptMessage = {
+        id: Math.random().toString(),
+        sender: 'assistant',
+        text: res.response_text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      };
+
+      setTranscripts((prev) => [...prev, aiMsg]);
+      speakText(res.response_text);
+
+      if (res.appointment_updated) {
+        onAppointmentUpdated();
+      }
+    } catch (err: any) {
+      console.error('Voice interaction error:', err);
+      const fallbackMsg: CallTranscriptMessage = {
+        id: Math.random().toString(),
+        sender: 'assistant',
+        text: "I heard you, but had trouble reaching the clinical scheduling engine. Please try once more.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      };
+      setTranscripts((prev) => [...prev, fallbackMsg]);
+      speakText(fallbackMsg.text);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Initialize Speech Recognition
+  const initSpeechRecognition = () => {
+    const win = window as unknown as IWindow;
+    const SpeechRec = win.SpeechRecognition || win.webkitSpeechRecognition;
+
+    if (!SpeechRec) {
+      console.warn('Web Speech API is not supported in this browser.');
+      return null;
+    }
+
+    const recognition = new SpeechRec();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: any) => {
+      if (isMuted || isAssistantSpeaking) return;
+
+      let interim = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcriptPart = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcriptPart;
+        } else {
+          interim += transcriptPart;
+        }
+      }
+
+      if (interim) {
+        setInterimText(interim);
+      }
+
+      if (finalTranscript.trim()) {
+        handleUserMessage(finalTranscript);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      // Ignore routine 'no-speech' or 'aborted'
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        console.warn('Speech recognition status:', event.error);
+      }
+    };
+
+    recognition.onend = () => {
+      // Auto-restart while call is active
+      if (isCallActiveRef.current && !isMuted) {
+        try {
+          recognition.start();
+        } catch {
+          // already started or busy
+        }
+      }
+    };
+
+    return recognition;
+  };
+
   const startCall = async () => {
     setErrorMessage(null);
     setTranscripts([]);
     setCallDuration(0);
     setCallState('requesting_mic');
+    isCallActiveRef.current = true;
 
     try {
-      // 1. Audio stream capture
+      // 1. Audio stream capture for visualizer & WebRTC
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -84,7 +237,7 @@ export const VoiceCallModal = ({
       });
       localStreamRef.current = stream;
 
-      // 2. Set up Web Audio Analyser
+      // 2. Set up Web Audio Analyser for dynamic waveform
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const audioCtx = new AudioCtx();
       audioContextRef.current = audioCtx;
@@ -96,114 +249,76 @@ export const VoiceCallModal = ({
 
       setCallState('connecting');
 
-      // 3. RTCPeerConnection configuration
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      });
-      pcRef.current = pc;
-
-      // Add local audio tracks
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-      // Create audio element for remote stream (Pipecat ElevenLabs TTS output)
-      const remoteAudio = new Audio();
-      remoteAudio.autoplay = true;
-
-      pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-          remoteAudio.srcObject = event.streams[0];
-          remoteAudio.play().catch(console.error);
-        }
-      };
-
-      // Optional data channel for real-time transcript/events
-      const dc = pc.createDataChannel('pipecat-events');
-      dc.onmessage = (event) => {
+      // 3. Start Browser Speech Recognition for instant speech-to-text
+      const rec = initSpeechRecognition();
+      if (rec) {
+        recognitionRef.current = rec;
         try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'transcript') {
-            setTranscripts((prev) => [
-              ...prev,
-              {
-                id: Math.random().toString(),
-                sender: data.sender || 'assistant',
-                text: data.text,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              },
-            ]);
-            if (data.appointment_changed) {
-              onAppointmentUpdated();
-            }
-          }
-        } catch {
-          // Plain text message
-          setTranscripts((prev) => [
-            ...prev,
-            {
-              id: Math.random().toString(),
-              sender: 'assistant',
-              text: event.data,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-            },
-          ]);
+          rec.start();
+        } catch (e) {
+          console.warn('Recognition start note:', e);
         }
-      };
+      }
 
-      // Create offer
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-      });
-      await pc.setLocalDescription(offer);
-
-      // Wait for ICE gathering to complete so all candidates and credentials are in the SDP
-      if (pc.iceGatheringState !== 'complete') {
-        await new Promise<void>((resolve) => {
-          const checkIceState = () => {
-            if (pc.iceGatheringState === 'complete') {
-              pc.removeEventListener('icegatheringstatechange', checkIceState);
-              resolve();
-            }
-          };
-          pc.addEventListener('icegatheringstatechange', checkIceState);
-          // Safety timeout after 1200ms
-          setTimeout(() => {
-            pc.removeEventListener('icegatheringstatechange', checkIceState);
-            resolve();
-          }, 1200);
+      // 4. Background WebRTC Signaling (optional real-time channel)
+      try {
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         });
+        pcRef.current = pc;
+        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+        const offer = await pc.createOffer({ offerToReceiveAudio: true });
+        await pc.setLocalDescription(offer);
+
+        // Await ICE completion
+        if (pc.iceGatheringState !== 'complete') {
+          await new Promise<void>((resolve) => {
+            const check = () => {
+              if (pc.iceGatheringState === 'complete') {
+                pc.removeEventListener('icegatheringstatechange', check);
+                resolve();
+              }
+            };
+            pc.addEventListener('icegatheringstatechange', check);
+            setTimeout(() => {
+              pc.removeEventListener('icegatheringstatechange', check);
+              resolve();
+            }, 800);
+          });
+        }
+
+        const sdpToSend = pc.localDescription?.sdp || offer.sdp || '';
+        const response = await api.sendVoiceOffer(sdpToSend, offer.type);
+        sessionIdRef.current = response.session_id;
+
+        if (pcRef.current && pc.signalingState !== 'closed') {
+          await pc.setRemoteDescription({
+            type: response.type as RTCSdpType,
+            sdp: response.sdp,
+          });
+        }
+      } catch (webrtcErr) {
+        console.info('WebRTC peer note (Web Speech active):', webrtcErr);
       }
-
-      setCallState('ringing');
-
-      const sdpToSend = pc.localDescription?.sdp || offer.sdp || '';
-
-      // Send offer to FastAPI backend
-      const response = await api.sendVoiceOffer(sdpToSend, offer.type);
-      sessionIdRef.current = response.session_id;
-
-      // Check if PC was closed while waiting
-      if (!pcRef.current || pc.signalingState === 'closed') {
-        return;
-      }
-
-      // Set backend answer
-      await pc.setRemoteDescription({
-        type: response.type as RTCSdpType,
-        sdp: response.sdp,
-      });
 
       setCallState('connected');
+
+      // 5. Welcome Greeting
+      const welcomeText = "Hello! Thank you for calling CarePoint Health Medical Clinic. I'm your AI appointment assistant. How may I help you today?";
       setTranscripts([
         {
           id: 'welcome',
           sender: 'assistant',
-          text: "Hello! Thank you for calling CarePoint Health Medical Clinic. I'm your AI appointment assistant. How may I help you today?",
+          text: welcomeText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         },
       ]);
+      speakText(welcomeText);
+
     } catch (err: unknown) {
       console.error('Call establishment error:', err);
-      const msg = err instanceof Error ? err.message : 'Failed to establish WebRTC connection.';
+      const msg = err instanceof Error ? err.message : 'Failed to access microphone or initialize audio.';
       setErrorMessage(msg);
       setCallState('failed');
       cleanupMedia();
@@ -211,6 +326,18 @@ export const VoiceCallModal = ({
   };
 
   const cleanupMedia = () => {
+    isCallActiveRef.current = false;
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // already stopped
+      }
+      recognitionRef.current = null;
+    }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
@@ -224,6 +351,9 @@ export const VoiceCallModal = ({
       pcRef.current = null;
     }
     analyserRef.current = null;
+    setIsAssistantSpeaking(false);
+    setIsProcessing(false);
+    setInterimText('');
   };
 
   const endCall = async () => {
@@ -245,7 +375,18 @@ export const VoiceCallModal = ({
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
-        setIsMuted(!audioTrack.enabled);
+        const newMuted = !audioTrack.enabled;
+        setIsMuted(newMuted);
+
+        if (newMuted && recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch {}
+        } else if (!newMuted && recognitionRef.current && isCallActiveRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch {}
+        }
       }
     }
   };
@@ -261,7 +402,7 @@ export const VoiceCallModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh] border border-slate-200">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[92vh] border border-slate-200">
         {/* Header */}
         <div className="bg-gradient-to-r from-teal-700 to-navy-900 px-6 py-4 text-white flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -282,6 +423,11 @@ export const VoiceCallModal = ({
                 ></span>
                 <span className="capitalize">{callState}</span>
                 {callState === 'connected' && ` • ${formatDuration(callDuration)}`}
+                {isAssistantSpeaking && (
+                  <span className="flex items-center gap-1 text-emerald-300 ml-1">
+                    <Volume2 className="w-3.5 h-3.5 animate-pulse" /> Speaking
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -294,11 +440,11 @@ export const VoiceCallModal = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 flex-1 flex flex-col space-y-5 overflow-hidden">
+        <div className="p-6 flex-1 flex flex-col space-y-4 overflow-hidden">
           {/* Waveform Visualization */}
           <AudioWaveform
             analyser={analyserRef.current}
-            isActive={callState === 'connected' && !isMuted}
+            isActive={callState === 'connected' && (!isMuted || isAssistantSpeaking)}
           />
 
           {/* Error Banner */}
@@ -308,21 +454,18 @@ export const VoiceCallModal = ({
               <div className="flex-1">
                 <p className="font-semibold">Voice Connection Note</p>
                 <p className="mt-0.5">{errorMessage}</p>
-                <p className="text-slate-500 mt-1">
-                  Ensure backend is running on port 8000 and valid AI API keys are configured.
-                </p>
               </div>
             </div>
           )}
 
           {/* Transcript Scroll Area */}
-          <div className="flex-1 min-h-[180px] bg-slate-50 rounded-2xl p-4 overflow-y-auto space-y-3 border border-slate-200" ref={scrollRef}>
+          <div className="flex-1 min-h-[220px] bg-slate-50 rounded-2xl p-4 overflow-y-auto space-y-3 border border-slate-200" ref={scrollRef}>
             {transcripts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-8">
                 <Sparkles className="w-8 h-8 text-slate-300 mb-2" />
                 <p className="text-xs font-medium">Spoken conversation transcript will stream here.</p>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Try asking: "I want an appointment with Dr. Sarah Jenkins tomorrow at 10 AM"
+                  Try saying: "I want to check Dr. Sarah Jenkins availability tomorrow"
                 </p>
               </div>
             ) : (
@@ -337,13 +480,13 @@ export const VoiceCallModal = ({
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
                       t.sender === 'user'
                         ? 'bg-teal-600 text-white rounded-br-none shadow-sm'
                         : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none shadow-sm'
                     }`}
                   >
-                    <p>{t.text}</p>
+                    <p className="whitespace-pre-wrap">{t.text}</p>
                     <span
                       className={`block text-[10px] mt-1 ${
                         t.sender === 'user' ? 'text-teal-200 text-right' : 'text-slate-400'
@@ -360,7 +503,60 @@ export const VoiceCallModal = ({
                 </div>
               ))
             )}
+
+            {/* Interim live speech recognition display */}
+            {interimText && (
+              <div className="flex justify-end gap-2.5 animate-pulse">
+                <div className="max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-teal-500/80 text-white rounded-br-none shadow-sm italic">
+                  <p>{interimText}...</p>
+                </div>
+                <div className="w-7 h-7 rounded-full bg-teal-200 text-teal-800 flex items-center justify-center shrink-0 text-xs">
+                  <Mic className="w-3.5 h-3.5 animate-bounce" />
+                </div>
+              </div>
+            )}
+
+            {/* Processing indicator */}
+            {isProcessing && (
+              <div className="flex justify-start gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center shrink-0 text-xs font-bold">
+                  AI
+                </div>
+                <div className="rounded-2xl px-3.5 py-2 text-xs bg-white text-slate-500 border border-slate-200 rounded-bl-none shadow-sm flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
+                  <span>Checking clinical records & schedules...</span>
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Quick Voice/Text Interactive Bar (Visible during call) */}
+          {callState === 'connected' && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleUserMessage(typedInput);
+              }}
+              className="flex items-center gap-2 pt-1"
+            >
+              <input
+                type="text"
+                placeholder={isMuted ? "Mic is muted. Type your message here..." : "Speak into your mic, or type message here..."}
+                value={typedInput}
+                onChange={(e) => setTypedInput(e.target.value)}
+                disabled={isProcessing}
+                className="flex-1 text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 bg-white"
+              />
+              <button
+                type="submit"
+                disabled={!typedInput.trim() || isProcessing}
+                className="p-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white rounded-xl transition-colors shadow-sm"
+                title="Send message"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          )}
         </div>
 
         {/* Call Controls Footer */}

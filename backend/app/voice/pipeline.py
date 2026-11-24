@@ -65,15 +65,17 @@ async def create_voice_pipeline_session(
     # 3. Configure Silero VAD
     vad = SileroVADAnalyzer(sample_rate=16000)
 
-    # 4. Configure ElevenLabs Speech-to-Text (STT)
-    if settings.ELEVENLABS_API_KEY:
-        stt = ElevenLabsRealtimeSTTService(
-            api_key=settings.ELEVENLABS_API_KEY,
-            model="scribe_v2_realtime",
-        )
-    else:
-        # Fallback dummy service if key is not provided during local mock testing
-        stt = None
+    # 4. Configure ElevenLabs Speech-to-Text (STT) safely
+    stt = None
+    if settings.ELEVENLABS_API_KEY and not settings.ELEVENLABS_API_KEY.startswith("dummy"):
+        try:
+            stt = ElevenLabsRealtimeSTTService(
+                api_key=settings.ELEVENLABS_API_KEY,
+                model="scribe_v2_realtime",
+            )
+        except Exception as e:
+            logger.warning(f"ElevenLabs STT initialization note: {e}")
+            stt = None
 
     # 5. Configure Google Gemini LLM with system prompt & 3 function tools
     db_session: Session = SessionLocal()
@@ -148,18 +150,27 @@ async def create_voice_pipeline_session(
     llm.register_function("book_appointment", handle_book_appointment, cancel_on_interruption=False)
     llm.register_function("cancel_appointment", handle_cancel_appointment, cancel_on_interruption=False)
 
-    # 6. Configure ElevenLabs Text-to-Speech (TTS)
-    tts = ElevenLabsTTSService(
-        api_key=settings.ELEVENLABS_API_KEY or "dummy_key",
-        voice_id=settings.ELEVENLABS_VOICE_ID,
-        model=settings.ELEVENLABS_MODEL_ID,
-    )
+    # 6. Configure ElevenLabs Text-to-Speech (TTS) safely
+    tts = None
+    if settings.ELEVENLABS_API_KEY and not settings.ELEVENLABS_API_KEY.startswith("dummy"):
+        try:
+            tts = ElevenLabsTTSService(
+                api_key=settings.ELEVENLABS_API_KEY,
+                voice_id=settings.ELEVENLABS_VOICE_ID,
+                model=settings.ELEVENLABS_MODEL_ID,
+            )
+        except Exception as e:
+            logger.warning(f"ElevenLabs TTS initialization note: {e}")
+            tts = None
 
     # 7. Build Pipeline
     processors = [transport.input()]
     if stt:
         processors.append(stt)
-    processors.extend([llm, tts, transport.output()])
+    processors.append(llm)
+    if tts:
+        processors.append(tts)
+    processors.append(transport.output())
 
     pipeline = Pipeline(processors)
     session.pipeline = pipeline
