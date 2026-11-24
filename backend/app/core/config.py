@@ -1,6 +1,8 @@
 """Application configuration using Pydantic Settings."""
 
-from typing import List
+from typing import List, Any
+import json
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +19,19 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     API_V1_PREFIX: str = "/api/v1"
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug(cls, v: Any) -> bool:
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            v_lower = v.strip().lower()
+            if v_lower in ("true", "1", "t", "yes", "y", "debug", "dev", "development"):
+                return True
+            if v_lower in ("false", "0", "f", "no", "n", "release", "prod", "production"):
+                return False
+        return bool(v)
 
     # Clinic Operations
     CLINIC_NAME: str = "CarePoint Health Medical Clinic"
