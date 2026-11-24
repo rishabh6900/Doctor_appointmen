@@ -20,7 +20,9 @@ export const AppointmentsTable = ({
 
   const filtered = appointments.filter((app) => {
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-    const matchesPhone = !searchPhone || app.patient_phone.includes(searchPhone) || app.patient_name.toLowerCase().includes(searchPhone.toLowerCase());
+    const phone = app.patient_phone || app.patient_phone_number || '';
+    const name = app.patient_name || '';
+    const matchesPhone = !searchPhone || phone.includes(searchPhone) || name.toLowerCase().includes(searchPhone.toLowerCase());
     return matchesStatus && matchesPhone;
   });
 
@@ -112,12 +114,12 @@ export const AppointmentsTable = ({
                       <div className="font-semibold text-slate-900">{app.patient_name}</div>
                       <div className="flex items-center gap-1 text-slate-500 text-[11px] font-mono mt-0.5">
                         <Phone className="w-3 h-3 text-slate-400" />
-                        <span>{app.patient_phone}</span>
+                        <span>{app.patient_phone || app.patient_phone_number}</span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="font-medium text-slate-900">{app.doctor_name}</div>
-                      <div className="text-[11px] text-teal-700 font-medium">{app.speciality}</div>
+                      <div className="font-medium text-slate-900">{app.doctor_name || `Doctor #${app.doctor_id}`}</div>
+                      <div className="text-[11px] text-teal-700 font-medium">{app.speciality || 'General'}</div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-1.5 font-medium text-slate-900">

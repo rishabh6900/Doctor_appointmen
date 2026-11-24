@@ -110,8 +110,9 @@ export function App() {
     if (!window.confirm(`Are you sure you want to cancel the appointment for ${app.patient_name} with ${app.doctor_name}?`)) {
       return;
     }
+    const phone = app.patient_phone || app.patient_phone_number || '';
     try {
-      await api.cancelAppointment(app.id, app.patient_phone, 'Cancelled via clinical dashboard UI');
+      await api.cancelAppointment(app.id, phone, 'Cancelled via clinical dashboard UI');
       await handleRefreshAppointments();
       if (activeTab === 'availability') {
         loadAvailability();

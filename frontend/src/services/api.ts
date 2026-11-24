@@ -34,7 +34,9 @@ export const api = {
 
   async getDoctors(speciality?: string): Promise<Doctor[]> {
     const q = speciality ? `?speciality=${encodeURIComponent(speciality)}` : '';
-    return fetchJson(`${API_BASE}/doctors${q}`);
+    const res = await fetchJson<{ total: number; items: Doctor[] } | Doctor[]>(`${API_BASE}/doctors${q}`);
+    if (Array.isArray(res)) return res;
+    return res.items || [];
   },
 
   async getDoctor(id: number): Promise<Doctor> {
@@ -46,14 +48,41 @@ export const api = {
     if (date) params.append('target_date', date);
     if (doctorId) params.append('doctor_id', doctorId.toString());
     if (speciality) params.append('speciality', speciality);
-    return fetchJson(`${API_BASE}/availability?${params.toString()}`);
+    const res = await fetchJson<any>(`${API_BASE}/availability?${params.toString()}`);
+    
+    // Parse backend structure: { results: [{ doctor_id, doctor_name, speciality, schedules: [{ date, time_slots: [] }] }] }
+    const flatSlots: AvailabilitySlot[] = [];
+    if (res && res.results && Array.isArray(res.results)) {
+      for (const doc of res.results) {
+        if (doc.schedules && Array.isArray(doc.schedules)) {
+          for (const sched of doc.schedules) {
+            if (sched.time_slots && Array.isArray(sched.time_slots)) {
+              for (const time of sched.time_slots) {
+                flatSlots.push({
+                  doctor_id: doc.doctor_id,
+                  doctor_name: doc.doctor_name,
+                  speciality: doc.speciality,
+                  date: sched.date,
+                  time: time,
+                });
+              }
+            }
+          }
+        }
+      }
+    } else if (Array.isArray(res)) {
+      return res;
+    }
+    return flatSlots;
   },
 
   async getAppointments(status?: string, date?: string): Promise<Appointment[]> {
     const params = new URLSearchParams();
     if (status) params.append('status', status);
     if (date) params.append('date', date);
-    return fetchJson(`${API_BASE}/appointments?${params.toString()}`);
+    const res = await fetchJson<{ total: number; items: Appointment[] } | Appointment[]>(`${API_BASE}/appointments?${params.toString()}`);
+    if (Array.isArray(res)) return res;
+    return res.items || [];
   },
 
   async cancelAppointment(appointmentId: number, patientPhone: string, reason?: string): Promise<Appointment> {

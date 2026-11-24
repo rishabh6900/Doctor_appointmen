@@ -2,6 +2,8 @@ export interface Doctor {
   id: number;
   name: string;
   speciality: string;
+  experience_years?: number;
+  description?: string | null;
   phone?: string | null;
   email?: string | null;
   consultation_fee?: number | null;
@@ -15,21 +17,22 @@ export interface AvailabilitySlot {
   speciality: string;
   date: string;
   time: string;
-  datetime_iso: string;
+  datetime_iso?: string;
 }
 
 export interface Appointment {
   id: number;
   doctor_id: number;
-  doctor_name: string;
-  speciality: string;
+  doctor_name?: string;
+  speciality?: string;
   patient_name: string;
-  patient_phone: string;
+  patient_phone_number: string;
+  patient_phone?: string;
   appointment_date: string;
   appointment_time: string;
   status: 'confirmed' | 'cancelled' | 'rescheduled' | 'completed';
   notes?: string | null;
-  created_at: string;
+  created_at?: string;
   cancelled_at?: string | null;
 }
 
