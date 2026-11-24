@@ -57,6 +57,17 @@ export const VoiceCallModal = ({
   const speechSafetyTimerRef = useRef<number | null>(null);
   const silenceTimerRef = useRef<number | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Preload and cache speech synthesis voices on mount
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -87,42 +98,69 @@ export const VoiceCallModal = ({
 
   // Speak assistant response aloud using Web Speech Synthesis
   const speakText = (text: string) => {
-    if ('speechSynthesis' in window) {
-      if (speechSafetyTimerRef.current) {
-        clearTimeout(speechSafetyTimerRef.current);
-        speechSafetyTimerRef.current = null;
-      }
-      window.speechSynthesis.cancel(); // cancel any ongoing speech
-      const utterance = new SpeechSynthesisUtterance(text);
-      utteranceRef.current = utterance;
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.lang = 'en-US';
+    if (!('speechSynthesis' in window)) return;
 
-      // Pick natural English voice if available
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find((v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha')));
-      if (preferred) utterance.voice = preferred;
-
-      const resetSpeaking = () => {
-        setIsAssistantSpeaking(false);
-        if (speechSafetyTimerRef.current) {
-          clearTimeout(speechSafetyTimerRef.current);
-          speechSafetyTimerRef.current = null;
-        }
-      };
-
-      utterance.onstart = () => {
-        setIsAssistantSpeaking(true);
-        // Safety timeout so assistant speech never permanently mutes caller mic
-        const maxDurationMs = Math.min(15000, Math.max(3000, text.length * 80));
-        speechSafetyTimerRef.current = window.setTimeout(resetSpeaking, maxDurationMs);
-      };
-      utterance.onend = resetSpeaking;
-      utterance.onerror = resetSpeaking;
-
-      window.speechSynthesis.speak(utterance);
+    if (speechSafetyTimerRef.current) {
+      clearTimeout(speechSafetyTimerRef.current);
+      speechSafetyTimerRef.current = null;
     }
+
+    // Always unpause synthesis before speaking
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+    window.speechSynthesis.cancel();
+
+    // 50ms timeout prevents Chromium from cancelling the new utterance during cancel teardown
+    window.setTimeout(() => {
+      if (!isCallActiveRef.current) return;
+      try {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utteranceRef.current = utterance;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.lang = 'en-US';
+
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length > 0) {
+          const preferred = voices.find(
+            (v) =>
+              v.lang.startsWith('en') &&
+              (v.name.includes('Natural') ||
+                v.name.includes('Google') ||
+                v.name.includes('Samantha') ||
+                v.name.includes('Jenny') ||
+                v.name.includes('Guy'))
+          );
+          if (preferred) utterance.voice = preferred;
+        }
+
+        const resetSpeaking = () => {
+          setIsAssistantSpeaking(false);
+          if (speechSafetyTimerRef.current) {
+            clearTimeout(speechSafetyTimerRef.current);
+            speechSafetyTimerRef.current = null;
+          }
+        };
+
+        utterance.onstart = () => {
+          setIsAssistantSpeaking(true);
+          const maxDurationMs = Math.min(15000, Math.max(3000, text.length * 85));
+          speechSafetyTimerRef.current = window.setTimeout(resetSpeaking, maxDurationMs);
+        };
+        utterance.onend = resetSpeaking;
+        utterance.onerror = (e) => {
+          console.warn('Speech synthesis note:', e);
+          resetSpeaking();
+        };
+
+        window.speechSynthesis.resume();
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.error('Speech synthesis playback error:', err);
+        setIsAssistantSpeaking(false);
+      }
+    }, 50);
   };
 
   // Handle sending a user utterance (from speech or typed) to backend
@@ -281,6 +319,9 @@ export const VoiceCallModal = ({
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const audioCtx = new AudioCtx();
       audioContextRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 64;
@@ -306,6 +347,16 @@ export const VoiceCallModal = ({
           iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         });
         pcRef.current = pc;
+
+        // Route incoming remote audio track from Pipecat to browser speaker
+        pc.ontrack = (event) => {
+          console.log('[WebRTC] Received remote audio track from Pipecat:', event.track);
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = event.streams[0] || new MediaStream([event.track]);
+            remoteAudioRef.current.play().catch((err) => console.warn('Remote audio autoplay note:', err));
+          }
+        };
+
         stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
         const offer = await pc.createOffer({ offerToReceiveAudio: true });
@@ -495,6 +546,9 @@ export const VoiceCallModal = ({
 
         {/* Content Body */}
         <div className="p-6 flex-1 flex flex-col space-y-4 overflow-hidden">
+          {/* Hidden Remote Audio Output element for WebRTC audio tracks */}
+          <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
           {/* Waveform Visualization */}
           <AudioWaveform
             analyser={analyserRef.current}
