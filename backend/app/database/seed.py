@@ -12,6 +12,7 @@ from app.models.appointment import Appointment
 
 logger = logging.getLogger(__name__)
 
+
 INITIAL_DOCTORS = [
     {
         "name": "Dr. Sarah Jenkins",
