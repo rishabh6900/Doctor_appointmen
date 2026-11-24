@@ -93,7 +93,10 @@ def seed_database(db: Session, num_days: int = 14) -> dict:
     db.commit()
 
     # 2. Seed Availability Windows for the next num_days
-    tz = pytz.timezone(settings.CLINIC_TIMEZONE)
+    try:
+        tz = pytz.timezone(settings.iana_timezone)
+    except pytz.UnknownTimeZoneError:
+        tz = pytz.timezone("Asia/Kolkata")
     today = datetime.now(tz).date()
 
     doctors = list(doctor_map.values())

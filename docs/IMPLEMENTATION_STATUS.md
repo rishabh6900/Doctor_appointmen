@@ -12,8 +12,8 @@
 |---|---|---|---|
 | **Phase 1** | Requirement Analysis, Research & Architecture | **VERIFIED** | Detailed in `readme.md` and 23-page `Voice_Appointment_System_Phase1_Research_and_Architecture.pdf`. |
 | **Phase 2** | Backend Foundation and Database | **VERIFIED** | FastAPI app, SQLite WAL, SQLAlchemy 2.x models, Pydantic v2 schemas, seed data (8 doctors, 96 availability slots), and doctor/specialty APIs tested & verified (14/14 tests passing). |
-| **Phase 3** | Appointment Business Logic | **NOT STARTED** | Next implementation phase. Availability slot calculation, atomic booking, cancellation, concurrency safety. |
-| **Phase 4** | Pipecat Voice Pipeline & External Integrations | **NOT STARTED** | Awaits Phase 3 completion. Requires external API keys (ElevenLabs & Gemini). |
+| **Phase 3** | Appointment Business Logic | **VERIFIED** | Dynamic slot generation, phone normalization/TTS readback formatting, atomic booking transaction, duplicate prevention, two-stage cancellation, dashboard stats, and 10-thread parallel concurrency test passing (36/36 tests passing in 0.84s). |
+| **Phase 4** | Pipecat Voice Pipeline & External Integrations | **NOT STARTED** | Next implementation phase. Pipecat 1.x pipeline, WebRTC transport, Silero VAD, ElevenLabs STT/TTS, Gemini Flash, 3 function tools, server confirmation guards. |
 | **Phase 5** | Frontend Dashboard & Phone Call UI | **NOT STARTED** | Awaits Phase 2/3 APIs. |
 | **Phase 6** | Real-Time Integration (WebRTC & WebSockets) | **NOT STARTED** | Awaits Phase 4 & Phase 5. |
 | **Phase 7** | End-to-End Testing & Performance Benchmarks | **NOT STARTED** | Acceptance tests 1–8 to be executed against real backend. |
@@ -48,16 +48,22 @@
 - [x] Write and pass automated test suite (14/14 tests passing in 0.42s)
 - [x] Verify live Uvicorn server startup and API responses
 
-### Phase 3: Appointment Business Logic (NEXT PHASE)
-- [ ] Implement `AvailabilityService` with dynamic slot generation from windows
-- [ ] Implement `AppointmentService` with atomic booking & cancellation logic
-- [ ] Implement strict phone number parsing & E.164 normalization using `phonenumbers`
-- [ ] Implement database-enforced conflict prevention (`SlotTakenError`, `DuplicateBookingError`)
-- [ ] Expose REST write endpoints (`POST /api/v1/appointments`, `POST /api/v1/appointments/{id}/cancel`)
-- [ ] Implement Dashboard Stats aggregation service (`GET /api/v1/dashboard/stats`)
-- [ ] Unit & concurrency test suite verifying atomic double-booking prevention
+### Phase 3: Appointment Business Logic (VERIFIED)
+- [x] Implement phone normalization, spoken word digit parser, TTS readback grouping, and display masking (`core/phone_utils.py`)
+- [x] Implement `AvailabilityService` with dynamic 30-minute slot slicing from windows (`services/availability_service.py`)
+- [x] Implement booked slot exclusion and alternative slot recommendations
+- [x] Implement `AppointmentRepository` with queries, mutations, and metrics aggregation (`repositories/appointment_repository.py`)
+- [x] Implement `AppointmentService` with atomic booking, slot revalidation, duplicate prevention, and past-date protection (`services/appointment_service.py`)
+- [x] Implement server-side confirmation guardrails (`phone_readback_confirmed`, `action_confirmed`)
+- [x] Implement two-stage cancellation engine with multi-appointment disambiguation
+- [x] Expose `GET /api/v1/availability` and `/api/v1/availability/doctor/{id}/slots` endpoints
+- [x] Expose `POST /api/v1/appointments`, `GET /api/v1/appointments`, `GET /api/v1/appointments/{id}`
+- [x] Expose `POST /api/v1/appointments/{id}/cancel`
+- [x] Expose `GET /api/v1/dashboard/stats`
+- [x] Write and pass full automated test suite (36/36 tests passing in 0.84s)
+- [x] Implement and pass 10-thread parallel concurrency test verifying exactly 1 booking and 9 typed `SLOT_TAKEN` conflicts under contention
 
-### Phase 4: Pipecat Voice Agent Pipeline
+### Phase 4: Pipecat Voice Agent Pipeline (NEXT PHASE)
 - [ ] Create Pipecat session manager and pipeline lifecycle handler
 - [ ] Wire `SmallWebRTCTransport` audio transport
 - [ ] Configure `SileroVADAnalyzer` and `TurnAnalyzerUserTurnStopStrategy` (Pipecat 1.x)

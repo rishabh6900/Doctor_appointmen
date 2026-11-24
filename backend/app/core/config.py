@@ -21,11 +21,29 @@ class Settings(BaseSettings):
     # Clinic Operations
     CLINIC_NAME: str = "CarePoint Health Medical Clinic"
     CLINIC_PHONE: str = "+1-800-555-0199"
-    CLINIC_TIMEZONE: str = "America/New_York"
-    DEFAULT_PHONE_REGION: str = "US"
+    CLINIC_TIMEZONE: str = "Asia/Kolkata"
+    DEFAULT_PHONE_REGION: str = "IN"
     CLINIC_OPEN_TIME: str = "09:00"
     CLINIC_CLOSE_TIME: str = "17:00"
     DEFAULT_SLOT_DURATION_MIN: int = 30
+
+    @property
+    def iana_timezone(self) -> str:
+        """Translate Windows timezone names to standard IANA timezone strings."""
+        tz_map = {
+            "india standard time": "Asia/Kolkata",
+            "ist": "Asia/Kolkata",
+            "eastern standard time": "America/New_York",
+            "est": "America/New_York",
+            "central standard time": "America/Chicago",
+            "cst": "America/Chicago",
+            "pacific standard time": "America/Los_Angeles",
+            "pst": "America/Los_Angeles",
+            "greenwich standard time": "UTC",
+            "gmt": "UTC",
+        }
+        cleaned = self.CLINIC_TIMEZONE.strip().lower()
+        return tz_map.get(cleaned, self.CLINIC_TIMEZONE)
 
     # Database
     DATABASE_URL: str = "sqlite:///./appointments.db"
