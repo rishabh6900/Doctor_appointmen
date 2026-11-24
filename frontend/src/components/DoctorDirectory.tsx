@@ -103,8 +103,10 @@ export const DoctorDirectory = ({
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" title="Active"></span>
               </div>
 
-              {doctor.bio && (
-                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{doctor.bio}</p>
+              {(doctor.bio || doctor.description) && (
+                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  {doctor.bio || doctor.description}
+                </p>
               )}
 
               <div className="space-y-1.5 text-xs text-slate-500 pt-2 border-t border-slate-100">

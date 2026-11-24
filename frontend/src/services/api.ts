@@ -29,7 +29,9 @@ export const api = {
   },
 
   async getSpecialities(): Promise<string[]> {
-    return fetchJson(`${API_BASE}/specialities`);
+    const res = await fetchJson<any[]>(`${API_BASE}/specialities`);
+    if (!Array.isArray(res)) return [];
+    return res.map((item) => (typeof item === 'string' ? item : item.speciality || String(item)));
   },
 
   async getDoctors(speciality?: string): Promise<Doctor[]> {
