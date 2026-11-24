@@ -1,0 +1,185 @@
+"""Pipecat Voice Pipeline Factory for Real-Time Medical Receptionist."""
+
+import asyncio
+import logging
+from typing import Optional, Tuple
+from sqlalchemy.orm import Session
+from app.core.config import settings
+from app.database.session import SessionLocal
+from app.voice.prompts import get_system_prompt
+from app.voice.session_manager import VoiceSession, voice_session_manager
+from app.voice.tools import (
+    VOICE_TOOLS,
+    execute_check_doctor_availability,
+    execute_book_appointment,
+    execute_cancel_appointment,
+)
+from app.services.availability_service import AvailabilityService
+
+# Pipecat framework imports
+from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.pipeline.pipeline import Pipeline
+from pipecat.pipeline.runner import PipelineRunner
+from pipecat.pipeline.task import PipelineTask, PipelineParams
+from pipecat.services.google.llm import GoogleLLMService
+from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+from pipecat.services.elevenlabs.stt import ElevenLabsRealtimeSTTService, ElevenLabsSTTService
+from pipecat.transports.base_transport import TransportParams
+from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
+from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
+
+logger = logging.getLogger(__name__)
+
+
+async def create_voice_pipeline_session(
+    sdp_offer: str,
+    session_id: Optional[str] = None,
+) -> Tuple[str, VoiceSession]:
+    """
+    Construct, wire, and launch a complete Pipecat 1.x voice session.
+
+    Pipeline Audio Flow:
+    Browser Mic (WebRTC) -> Silero VAD -> ElevenLabs STT -> Google Gemini LLM (with 3 tools) -> ElevenLabs TTS -> Browser Speaker (WebRTC)
+    """
+    session = voice_session_manager.create_session(session_id)
+
+    # 1. Initialize WebRTC Peer Connection and generate Answer
+    webrtc_conn = SmallWebRTCConnection()
+    await webrtc_conn.initialize(sdp=sdp_offer, type="offer")
+    sdp_answer = await webrtc_conn.get_answer()
+
+    # 2. Configure SmallWebRTCTransport
+    transport_params = TransportParams(
+        audio_in_enabled=True,
+        audio_out_enabled=True,
+        camera_in_enabled=False,
+        camera_out_enabled=False,
+    )
+    transport = SmallWebRTCTransport(
+        webrtc_connection=webrtc_conn,
+        params=transport_params,
+    )
+    session.transport = transport
+
+    # 3. Configure Silero VAD
+    vad = SileroVADAnalyzer(sample_rate=16000)
+
+    # 4. Configure ElevenLabs Speech-to-Text (STT)
+    if settings.ELEVENLABS_API_KEY:
+        stt = ElevenLabsRealtimeSTTService(
+            api_key=settings.ELEVENLABS_API_KEY,
+            model="scribe_v2_realtime",
+        )
+    else:
+        # Fallback dummy service if key is not provided during local mock testing
+        stt = None
+
+    # 5. Configure Google Gemini LLM with system prompt & 3 function tools
+    db_session: Session = SessionLocal()
+    avail_service = AvailabilityService(db_session)
+    clinic_today = avail_service.get_clinic_today()
+
+    system_instruction = get_system_prompt(clinic_today)
+
+    llm = GoogleLLMService(
+        api_key=settings.GOOGLE_API_KEY or "dummy_key",
+        model=settings.GEMINI_MODEL,
+        system_instruction=system_instruction,
+        tools=VOICE_TOOLS,
+    )
+
+    # Tool 1: check_doctor_availability handler
+    async def handle_check_availability(function_name, tool_call_id, args, llm_context, result_callback):
+        logger.info(f"[{session.session_id}] Voice Tool Execution: check_doctor_availability({args})")
+        doc_db = SessionLocal()
+        try:
+            result = execute_check_doctor_availability(
+                db=doc_db,
+                doctor_name=args.get("doctor_name"),
+                speciality=args.get("speciality"),
+                appointment_date=args.get("appointment_date"),
+            )
+            session.touch()
+            await result_callback(result)
+        finally:
+            doc_db.close()
+
+    # Tool 2: book_appointment handler
+    async def handle_book_appointment(function_name, tool_call_id, args, llm_context, result_callback):
+        logger.info(f"[{session.session_id}] Voice Tool Execution: book_appointment({args})")
+        doc_db = SessionLocal()
+        try:
+            result = execute_book_appointment(
+                db=doc_db,
+                patient_phone_number=args.get("patient_phone_number", ""),
+                doctor_id=args.get("doctor_id", 0),
+                appointment_date=args.get("appointment_date", ""),
+                appointment_time=args.get("appointment_time", ""),
+                patient_name=args.get("patient_name"),
+                phone_readback_confirmed=args.get("phone_readback_confirmed", False),
+                action_confirmed=args.get("action_confirmed", False),
+            )
+            session.touch()
+            if result.get("status") == "confirmed":
+                session.patient_phone = result.get("patient_phone_number")
+            await result_callback(result)
+        finally:
+            doc_db.close()
+
+    # Tool 3: cancel_appointment handler
+    async def handle_cancel_appointment(function_name, tool_call_id, args, llm_context, result_callback):
+        logger.info(f"[{session.session_id}] Voice Tool Execution: cancel_appointment({args})")
+        doc_db = SessionLocal()
+        try:
+            result = execute_cancel_appointment(
+                db=doc_db,
+                patient_phone_number=args.get("patient_phone_number", ""),
+                appointment_id=args.get("appointment_id"),
+                phone_readback_confirmed=args.get("phone_readback_confirmed", False),
+                action_confirmed=args.get("action_confirmed", False),
+            )
+            session.touch()
+            await result_callback(result)
+        finally:
+            doc_db.close()
+
+    llm.register_function("check_doctor_availability", handle_check_availability, cancel_on_interruption=False)
+    llm.register_function("book_appointment", handle_book_appointment, cancel_on_interruption=False)
+    llm.register_function("cancel_appointment", handle_cancel_appointment, cancel_on_interruption=False)
+
+    # 6. Configure ElevenLabs Text-to-Speech (TTS)
+    tts = ElevenLabsTTSService(
+        api_key=settings.ELEVENLABS_API_KEY or "dummy_key",
+        voice_id=settings.ELEVENLABS_VOICE_ID,
+        model=settings.ELEVENLABS_MODEL_ID,
+    )
+
+    # 7. Build Pipeline
+    processors = [transport.input()]
+    if stt:
+        processors.append(stt)
+    processors.extend([llm, tts, transport.output()])
+
+    pipeline = Pipeline(processors)
+    session.pipeline = pipeline
+
+    # 8. Start Background Runner Task
+    task = PipelineTask(pipeline, params=PipelineParams(allow_interruptions=True))
+    runner = PipelineRunner()
+
+    async def run_pipeline():
+        try:
+            session.status = "active"
+            logger.info(f"Starting voice pipeline runner for {session.session_id}")
+            await runner.run(task)
+        except asyncio.CancelledError:
+            logger.info(f"Voice pipeline cancelled for {session.session_id}")
+        except Exception as exc:
+            logger.error(f"Voice pipeline runtime error: {exc}", exc_info=True)
+            session.status = "failed"
+        finally:
+            db_session.close()
+
+    session.runner_task = asyncio.create_task(run_pipeline())
+
+    return sdp_answer, session

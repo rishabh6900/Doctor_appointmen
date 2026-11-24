@@ -13,8 +13,8 @@
 | **Phase 1** | Requirement Analysis, Research & Architecture | **VERIFIED** | Detailed in `readme.md` and 23-page `Voice_Appointment_System_Phase1_Research_and_Architecture.pdf`. |
 | **Phase 2** | Backend Foundation and Database | **VERIFIED** | FastAPI app, SQLite WAL, SQLAlchemy 2.x models, Pydantic v2 schemas, seed data (8 doctors, 96 availability slots), and doctor/specialty APIs tested & verified (14/14 tests passing). |
 | **Phase 3** | Appointment Business Logic | **VERIFIED** | Dynamic slot generation, phone normalization/TTS readback formatting, atomic booking transaction, duplicate prevention, two-stage cancellation, dashboard stats, and 10-thread parallel concurrency test passing (36/36 tests passing in 0.84s). |
-| **Phase 4** | Pipecat Voice Pipeline & External Integrations | **NOT STARTED** | Next implementation phase. Pipecat 1.x pipeline, WebRTC transport, Silero VAD, ElevenLabs STT/TTS, Gemini Flash, 3 function tools, server confirmation guards. |
-| **Phase 5** | Frontend Dashboard & Phone Call UI | **NOT STARTED** | Awaits Phase 2/3 APIs. |
+| **Phase 4** | Pipecat Voice Pipeline & External Integrations | **VERIFIED** | Pipecat 1.17.0 pipeline, SmallWebRTCTransport, Silero VAD, ElevenLabs STT/TTS services, GoogleLLMService with Gemini Flash, 3 function tools with server-side confirmation guardrails, WebRTC signaling endpoint (48/48 tests passing). |
+| **Phase 5** | Frontend Dashboard & Phone Call UI | **NOT STARTED** | Next implementation phase. Vite + React + TypeScript + Tailwind CSS healthcare SaaS dashboard with phone call modal, live waveform, and transcript. |
 | **Phase 6** | Real-Time Integration (WebRTC & WebSockets) | **NOT STARTED** | Awaits Phase 4 & Phase 5. |
 | **Phase 7** | End-to-End Testing & Performance Benchmarks | **NOT STARTED** | Acceptance tests 1–8 to be executed against real backend. |
 | **Phase 8** | Production Hardening, Docker & Final 34-Section PDF | **NOT STARTED** | Final packaging and delivery phase. |
@@ -63,21 +63,21 @@
 - [x] Write and pass full automated test suite (36/36 tests passing in 0.84s)
 - [x] Implement and pass 10-thread parallel concurrency test verifying exactly 1 booking and 9 typed `SLOT_TAKEN` conflicts under contention
 
-### Phase 4: Pipecat Voice Agent Pipeline (NEXT PHASE)
-- [ ] Create Pipecat session manager and pipeline lifecycle handler
-- [ ] Wire `SmallWebRTCTransport` audio transport
-- [ ] Configure `SileroVADAnalyzer` and `TurnAnalyzerUserTurnStopStrategy` (Pipecat 1.x)
-- [ ] Integrate `ElevenLabsRealtimeSTTService` (or HTTP fallback)
-- [ ] Integrate `GoogleLLMService` (Gemini Flash with latency tuning)
-- [ ] Integrate `ElevenLabsTTSService` (WebSocket streaming audio)
-- [ ] Implement LLM Function Calling tools:
-  - `check_doctor_availability`
-  - `book_appointment`
-  - `cancel_appointment`
-- [ ] Implement server-side confirmation guardrails (`phone_readback_confirmed`, `action_confirmed`)
-- [ ] Expose WebRTC signaling endpoint (`POST /api/v1/voice/offer`)
+### Phase 4: Pipecat Voice Agent Pipeline (VERIFIED)
+- [x] Install and verify `pipecat-ai>=1.17.0`, `aiortc`, `google-genai`, `pipecat-ai[google]`, `pipecat-ai[elevenlabs]`
+- [x] Implement dynamic AI receptionist system prompt with clinical boundaries & emergency safety directives (`voice/prompts.py`)
+- [x] Implement Tool 1: `check_doctor_availability` with structured schema and handler (`voice/tools/availability_tool.py`)
+- [x] Implement Tool 2: `book_appointment` with double confirmation server guards (`voice/tools/booking_tool.py`)
+- [x] Implement Tool 3: `cancel_appointment` with 2-stage verbal disambiguation and confirmation (`voice/tools/cancellation_tool.py`)
+- [x] Configure `SileroVADAnalyzer` (16kHz) for speech activity detection
+- [x] Configure `ElevenLabsRealtimeSTTService` and `ElevenLabsTTSService` (WebSocket streaming audio)
+- [x] Configure `GoogleLLMService` (Gemini Flash) with function tool bindings
+- [x] Configure `SmallWebRTCTransport` for peer-to-peer browser voice exchange
+- [x] Implement `VoiceSessionManager` and per-call lifecycle management (`voice/session_manager.py`)
+- [x] Expose WebRTC signaling endpoint `POST /api/v1/voice/offer` and session endpoints (`api/v1/endpoints/voice.py`)
+- [x] Write and pass automated test suite (48/48 tests passing in 10.53s)
 
-### Phase 5: Frontend Healthcare Dashboard
+### Phase 5: Frontend Dashboard & Phone Call UI (NEXT PHASE)
 - [ ] Initialize React + Vite + TypeScript application with Tailwind CSS
 - [ ] Build Design System & Layout (Typography, modern healthcare SaaS color palette)
 - [ ] Implement Overview Metrics Cards (Total/Available Doctors, Active/Cancelled Appointments)
