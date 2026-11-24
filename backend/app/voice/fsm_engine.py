@@ -93,9 +93,57 @@ class FSMEngine:
         # Ensure greeting is marked as sent for any substantive request
         self.state.greeting_sent = True
 
-        # 3. Resolve Affirmation / Denial based on Pending Action
+        # 3. Post-Booking Continuation / Closure (Prevents Replaying Confirmation)
+        if self.state.booking_confirmation or self.state.current_state in ("BOOKING_SUCCESS", "POST_BOOKING_DIALOGUE"):
+            # Acknowledge gratitude or closing remarks
+            closure_pattern = r"\b(thank\s*you|thanks|okay\s*thanks|ok\s*thanks|bye|goodbye|that'?s\s*all|nothing\s*else|no\s*that'?s\s*it|that\s*will\s*be\s*all)\b"
+            if re.search(closure_pattern, lower_text):
+                self.state.current_state = "POST_BOOKING_DIALOGUE"
+                self.state.workflow_status = "COMPLETED"
+                return {
+                    "response_text": "You're very welcome! If you need anything else, please don't hesitate to call. Have a wonderful day!",
+                    "appointment_updated": False,
+                    "tools_called": [],
+                }
+
+            # Start another booking cleanly without corrupting the completed one
+            another_pattern = r"\b(another\s*appointment|book\s*another|new\s*appointment|another\s*booking|one\s*more|schedule\s*another)\b"
+            if re.search(another_pattern, lower_text):
+                self.state.reset_for_new_booking()
+                return {
+                    "response_text": "Certainly! I'd be glad to help book another appointment. Which doctor or medical speciality would you prefer?",
+                    "appointment_updated": False,
+                    "tools_called": [],
+                }
+
+        # 4. Short Intent Resolution
+        short_book_words = ("new", "app", "appointment", "new appointment", "book", "schedule", "book appointment")
+        if lower_text in short_book_words:
+            if not self.state.selected_doctor_name and not self.state.appointment_date:
+                self.state.current_intent = "BOOK_APPOINTMENT"
+                self.state.workflow_status = "IN_PROGRESS"
+                self.state.current_state = "COLLECT_PREFERENCES"
+                self.state.pending_action = "AWAITING_DOCTOR_OR_SPECIALITY"
+                return {
+                    "response_text": "I'd be glad to help schedule an appointment. Which doctor or medical speciality are you interested in?",
+                    "appointment_updated": False,
+                    "tools_called": [],
+                }
+
+        # 5. Resolve Affirmation / Denial based on Pending Action
         is_affirmative = bool(re.search(r"\b(yes|yeah|yep|correct|that's right|confirm|sure|proceed|okay|ok|please do)\b", lower_text))
         is_negative = bool(re.search(r"\b(no|nope|not correct|wrong|cancel that|don't)\b", lower_text))
+
+        # Check slot ordinal resolution if waiting for time (e.g. "first one", "earliest")
+        if self.state.pending_action == "AWAITING_TIME" and self.state.available_slots:
+            if re.search(r"\b(first|earliest|1st)\b", lower_text):
+                slot = self.state.available_slots[0]
+                self.state.appointment_time = slot
+                self.state.appointment_time_spoken = datetime_service.format_time_for_speech(slot)
+            elif re.search(r"\b(second|2nd)\b", lower_text) and len(self.state.available_slots) > 1:
+                slot = self.state.available_slots[1]
+                self.state.appointment_time = slot
+                self.state.appointment_time_spoken = datetime_service.format_time_for_speech(slot)
 
         # Check phone confirmation resolution
         if self.state.pending_action == "AWAITING_PHONE_CONFIRMATION":
@@ -226,6 +274,18 @@ class FSMEngine:
     def _handle_scheduling_flow(self, text: str, tools_called: List[str]) -> Dict[str, Any]:
         """Orchestrate availability checking, slot presentation, and booking transitions."""
         self.state.current_intent = "BOOK_APPOINTMENT"
+        self.state.workflow_status = "IN_PROGRESS"
+
+        # Guard: If booking is already confirmed, do not re-prompt confirmation
+        if self.state.booking_confirmation:
+            return {
+                "response_text": (
+                    f"Your appointment is already confirmed (Reference #{self.state.booked_appointment_id}). "
+                    "If you would like to schedule another appointment, please let me know!"
+                ),
+                "appointment_updated": False,
+                "tools_called": [],
+            }
 
         # Speciality validation (eliminate non-existent specialties)
         if self.state.requested_speciality:
@@ -242,7 +302,30 @@ class FSMEngine:
                     "tools_called": [],
                 }
 
-        # Step A: Missing Date
+        target_date_obj = datetime_service.get_clinic_today()
+        if self.state.appointment_date:
+            try:
+                target_date_obj = target_date_obj.fromisoformat(self.state.appointment_date)
+            except Exception:
+                pass
+        date_spoken = datetime_service.format_date_for_speech(target_date_obj)
+
+        # Step A: Missing Doctor AND Speciality (retain previously collected date/time)
+        if not self.state.selected_doctor_name and not self.state.requested_speciality:
+            self.state.current_state = "COLLECT_PREFERENCES"
+            self.state.pending_action = "AWAITING_DOCTOR_OR_SPECIALITY"
+            if self.state.appointment_date:
+                time_part = f" at {self.state.appointment_time_spoken}" if self.state.appointment_time_spoken else ""
+                prompt = f"Certainly! Which doctor or medical speciality would you prefer for {date_spoken}{time_part}?"
+            else:
+                prompt = "I'd be glad to help schedule an appointment. Which doctor or medical speciality are you interested in?"
+            return {
+                "response_text": prompt,
+                "appointment_updated": False,
+                "tools_called": [],
+            }
+
+        # Step B: Missing Date
         if not self.state.appointment_date:
             self.state.current_state = "COLLECT_PREFERENCES"
             self.state.pending_action = "AWAITING_DATE"
@@ -251,22 +334,15 @@ class FSMEngine:
             elif self.state.requested_speciality:
                 prompt = f"Certainly! What date would you prefer for your {self.state.requested_speciality} consultation?"
             else:
-                prompt = "I'd be glad to help schedule an appointment. Which doctor or specialty are you interested in, and for what date?"
+                prompt = "I'd be glad to help schedule an appointment. For what date would you like your appointment?"
             return {
                 "response_text": prompt,
                 "appointment_updated": False,
                 "tools_called": [],
             }
 
-        # Step B: Execute Availability Check if slots not yet fetched for this doctor & date
-        target_date_obj = datetime_service.get_clinic_today()
-        if self.state.appointment_date:
-            try:
-                target_date_obj = target_date_obj.fromisoformat(self.state.appointment_date)
-            except Exception:
-                pass
-
-        if not self.state.available_slots or self.state.pending_action == "AWAITING_DATE":
+        # Step C: Execute Availability Check if slots not yet fetched for this doctor & date
+        if not self.state.available_slots or self.state.pending_action in ("AWAITING_DATE", "AWAITING_DOCTOR_OR_SPECIALITY"):
             tools_called.append("check_doctor_availability")
             res = execute_check_doctor_availability(
                 db=self.db,
@@ -278,9 +354,10 @@ class FSMEngine:
 
             if res.get("status") == "success" and res.get("results"):
                 first_match = res["results"][0]
-                self.state.selected_doctor_id = first_match["doctor_id"]
-                self.state.selected_doctor_name = first_match["doctor_name"]
-                self.state.requested_speciality = first_match["speciality"]
+                if not self.state.selected_doctor_id or not self.state.selected_doctor_name:
+                    self.state.selected_doctor_id = first_match["doctor_id"]
+                    self.state.selected_doctor_name = first_match["doctor_name"]
+                    self.state.requested_speciality = first_match["speciality"]
                 schedules = first_match.get("schedules", [])
                 if schedules:
                     slots = schedules[0].get("time_slots") or schedules[0].get("available_slots") or []
@@ -290,7 +367,6 @@ class FSMEngine:
             else:
                 self.state.available_slots = []
 
-        date_spoken = datetime_service.format_date_for_speech(target_date_obj)
         doc_display_name = self.state.selected_doctor_name if (self.state.selected_doctor_name and self.state.selected_doctor_name.startswith("Dr.")) else f"Dr. {self.state.selected_doctor_name or 'our physicians'}"
 
         if not self.state.available_slots:
@@ -300,7 +376,7 @@ class FSMEngine:
                 "tools_called": tools_called,
             }
 
-        # Step C: Present slots and collect preferred time
+        # Step D: Present slots and collect preferred time
         if not self.state.appointment_time:
             self.state.current_state = "PRESENT_AVAILABLE_SLOTS"
             self.state.pending_action = "AWAITING_TIME"
@@ -316,7 +392,7 @@ class FSMEngine:
                 "tools_called": tools_called,
             }
 
-        # Step D: Preferred time selected; collect and confirm phone
+        # Step E: Preferred time selected; collect and confirm phone (NO mandatory name question)
         if not self.state.patient_phone or not self.state.phone_confirmed:
             if not self.state.patient_phone:
                 self.state.current_state = "COLLECT_DETAILS"
@@ -340,7 +416,7 @@ class FSMEngine:
                     "tools_called": tools_called,
                 }
 
-        # Step E: Phone confirmed; ask for final verbal booking confirmation
+        # Step F: Phone confirmed; ask for final verbal booking confirmation
         self.state.current_state = "CONFIRM_BOOKING"
         self.state.pending_action = "AWAITING_BOOKING_CONFIRMATION"
         return self._prompt_final_booking_confirmation()
@@ -386,6 +462,7 @@ class FSMEngine:
 
         if res.get("status") == "confirmed":
             self.state.current_state = "BOOKING_SUCCESS"
+            self.state.workflow_status = "COMPLETED"
             self.state.booking_confirmation = True
             self.state.booked_appointment_id = res.get("booking_id")
             self.state.pending_action = None
@@ -437,16 +514,16 @@ class FSMEngine:
             action_confirmed=False,
         )
 
-        if res.get("status") == "error":
+        if res.get("status") in ("none_found", "error"):
             return {
-                "response_text": f"I couldn't locate any active appointments under that telephone number. Please verify your phone number.",
+                "response_text": "I couldn't locate any active appointments under that telephone number. Please verify your phone number.",
                 "appointment_updated": False,
                 "tools_called": tools_called,
             }
 
-        if res.get("status") == "disambiguation_required":
+        if res.get("status") in ("multiple_found", "disambiguation_required"):
             items = res.get("appointments", [])
-            summary = ", ".join([f"Appointment #{a['id']} on {a['appointment_date']} at {a['appointment_time']}" for a in items])
+            summary = ", ".join([f"Appointment #{a.get('appointment_id', a.get('id'))} on {a.get('date', a.get('appointment_date'))} at {a.get('time', a.get('appointment_time'))}" for a in items])
             self.state.pending_action = "AWAITING_APPOINTMENT_ID_SELECTION"
             return {
                 "response_text": f"I found multiple appointments under your phone: {summary}. Which appointment ID would you like to cancel?",
@@ -454,13 +531,15 @@ class FSMEngine:
                 "tools_called": tools_called,
             }
 
-        if res.get("status") == "action_confirmation_required":
+        if res.get("status") in ("awaiting_confirmation", "action_confirmation_required"):
             self.state.current_state = "CONFIRM_CANCELLATION"
             self.state.pending_action = "AWAITING_CANCELLATION_CONFIRMATION"
             app_id = res.get("appointment_id")
             self.state.cancelled_appointment_id = app_id
+            date_val = res.get("date") or res.get("appointment_date")
+            time_val = res.get("time") or res.get("appointment_time")
             return {
-                "response_text": f"I have located your appointment #{app_id} with Dr. {res.get('doctor_name')} on {res.get('appointment_date')} at {res.get('appointment_time')}. Are you sure you wish to cancel this appointment?",
+                "response_text": f"I have located your appointment #{app_id} with Dr. {res.get('doctor_name')} on {date_val} at {time_val}. Are you sure you wish to cancel this appointment?",
                 "appointment_updated": False,
                 "tools_called": tools_called,
             }
@@ -484,6 +563,7 @@ class FSMEngine:
 
         if res.get("status") == "cancelled":
             self.state.current_state = "CANCELLATION_SUCCESS"
+            self.state.workflow_status = "COMPLETED"
             self.state.cancellation_confirmation = True
             self.state.pending_action = None
             return {

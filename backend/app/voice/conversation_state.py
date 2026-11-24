@@ -17,6 +17,7 @@ class ConversationState(BaseModel):
     call_status: str = "active"  # connecting, active, ended, failed
     current_intent: Optional[str] = None  # CHECK_AVAILABILITY, BOOK_APPOINTMENT, CANCEL_APPOINTMENT, GENERAL_INQUIRY
     current_state: str = "LISTENING"
+    workflow_status: str = "IDLE"  # IDLE, IN_PROGRESS, COMPLETED
 
     # Patient Identification
     patient_name: Optional[str] = None
@@ -46,12 +47,16 @@ class ConversationState(BaseModel):
 
     # Contextual Memory & FSM Guards
     pending_action: Optional[str] = None  # e.g., 'AWAITING_DATE', 'AWAITING_TIME', 'AWAITING_PHONE_CONFIRMATION', 'AWAITING_BOOKING_CONFIRMATION'
+    pending_question: Optional[str] = None  # Semantic pending question category
     last_question: Optional[str] = None  # Exact last prompt asked by the assistant
     last_tool_result: Optional[Dict[str, Any]] = None
 
-    # Anti-Repetition Flags
+    # Anti-Repetition & Deduplication Flags
     greeting_sent: bool = False
     turns_count: int = 0
+    last_processed_utterance: Optional[str] = None
+    last_processed_time: float = 0.0
+    last_response_text: Optional[str] = None
 
     def update_intent(self, intent: str, new_state: Optional[str] = None):
         """Update active conversational intent without wiping existing details."""
@@ -64,10 +69,17 @@ class ConversationState(BaseModel):
         self.appointment_date = None
         self.appointment_time = None
         self.appointment_time_spoken = None
+        self.selected_doctor_id = None
+        self.selected_doctor_name = None
+        self.requested_speciality = None
         self.booking_confirmation = False
         self.booked_appointment_id = None
         self.available_slots = []
         self.pending_action = None
+        self.pending_question = None
+        self.current_intent = "BOOK_APPOINTMENT"
+        self.current_state = "COLLECT_PREFERENCES"
+        self.workflow_status = "IN_PROGRESS"
 
     def to_system_context(self) -> str:
         """

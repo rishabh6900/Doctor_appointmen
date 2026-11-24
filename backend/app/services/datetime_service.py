@@ -109,7 +109,8 @@ class DateTimeService:
     def parse_time(self, text: str) -> Tuple[Optional[str], Optional[str]]:
         """
         Extract and normalize time from user speech to 'HH:MM' 24-hour format.
-        Handles '10 AM', '10:30', '2:30 PM', 'at 9', '14:00', 'morning', 'afternoon'.
+        Handles '10 AM', '10:30', '2:30 PM', 'at 9', '14:00', 'four PM', 'ten AM',
+        'four thirty PM', '4', 'four o'clock'.
         
         Returns:
             (normalized_hh_mm, error_message)
@@ -118,6 +119,43 @@ class DateTimeService:
             return None, None
 
         cleaned = text.lower().strip()
+
+        # Word numbers mapping
+        word_to_num = {
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "eleven": 11, "twelve": 12,
+        }
+        word_minutes = {
+            "thirty": 30, "half": 30, "zero": 0, "o'clock": 0, "oclock": 0
+        }
+
+        # Replace spoken word hour phrases like 'four pm', 'ten am', 'two thirty pm'
+        # Check word-based time with am/pm (e.g. 'four pm', 'four thirty pm', 'ten am')
+        word_pattern = rf"\b({'|'.join(word_to_num.keys())})(?:\s+({'|'.join(word_minutes.keys())}))?\s*(am|pm)?\b"
+        w_match = re.search(word_pattern, cleaned)
+        if w_match:
+            word_hr = w_match.group(1)
+            word_min = w_match.group(2)
+            meridiem = w_match.group(3)
+
+            hours = word_to_num[word_hr]
+            minutes = word_minutes.get(word_min, 0) if word_min else 0
+
+            # If no meridiem specified, infer from typical clinic hours (9 AM - 5 PM)
+            if not meridiem:
+                if 1 <= hours <= 5 or "afternoon" in cleaned or "evening" in cleaned:
+                    meridiem = "pm"
+                elif 9 <= hours <= 12 or "morning" in cleaned:
+                    meridiem = "am"
+
+            if meridiem == "pm" and hours != 12:
+                hours += 12
+            elif meridiem == "am" and hours == 12:
+                hours = 0
+
+            if 9 <= hours <= 17:
+                return f"{hours:02d}:{minutes:02d}", None
 
         # 1. Explicit 12-hour or 24-hour format with AM/PM (e.g. '10:30 am', '9 am', '2:30 pm', '4 pm')
         time_ampm_match = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", cleaned)
@@ -143,13 +181,12 @@ class DateTimeService:
             minutes = int(hhmm_match.group(2))
             return f"{hours:02d}:{minutes:02d}", None
 
-        # 3. Plain number following 'at' (e.g. 'at 10', 'at 9', 'at 2', 'at 11')
-        at_match = re.search(r"\bat\s+(\d{1,2})\b", cleaned)
+        # 3. Plain number following 'at' or standalone number matching clinic hours
+        at_match = re.search(r"\b(?:at\s+)?(\d{1,2})\s*(?:o'clock)?\b", cleaned)
         if at_match:
             val = int(at_match.group(1))
             # Clinic hours are generally 09:00 to 17:00
-            if 1 <= val <= 5:
-                # 1 to 5 means 13:00 to 17:00 in afternoon
+            if 1 <= val <= 5 or "afternoon" in cleaned:
                 val += 12
             elif 9 <= val <= 12:
                 pass  # Morning 09:00 - 12:00

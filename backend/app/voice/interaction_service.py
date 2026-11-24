@@ -36,12 +36,32 @@ class VoiceInteractionService:
         Process user spoken or typed query, invoke appropriate clinic tools,
         and generate a friendly, natural receptionist response.
         """
+        import time
         session = voice_session_manager.get_or_create_session(session_id)
         state = conversation_state_manager.get_or_create(session.session_id)
 
+        now = time.time()
+        clean_msg = message.strip()
+
+        # Idempotency Guard: Suppress identical utterance duplicates within 1.5s window
+        if (
+            state.last_processed_utterance
+            and state.last_processed_utterance.lower() == clean_msg.lower()
+            and (now - state.last_processed_time) < 1.5
+            and state.last_response_text
+        ):
+            logger.info(f"[{session.session_id}] Duplicate utterance suppressed: '{clean_msg}'")
+            return {
+                "session_id": session.session_id,
+                "response_text": state.last_response_text,
+                "appointment_updated": False,
+                "tools_called": [],
+                "current_state": state.current_state,
+            }
+
         # 1. Run deterministic FSM engine turn
         fsm = FSMEngine(db=self.db, state=state)
-        fsm_result = fsm.process_turn(message)
+        fsm_result = fsm.process_turn(clean_msg)
 
         # 2. Synchronize session properties
         if state.patient_phone:
@@ -52,8 +72,9 @@ class VoiceInteractionService:
         # The FSM provides authoritative clinical correctness; Gemini delivers natural human flow
         response_text = fsm_result["response_text"]
 
-        # Only pass to Gemini if it's general conversational dialogue and not emergency
-        if self.client and state.current_state not in ("EMERGENCY_DIVERT", "CONFIRM_PHONE", "CONFIRM_BOOKING"):
+        # Only pass to Gemini if it's general conversational dialogue and not critical clinical confirmation states
+        exact_states = ("EMERGENCY_DIVERT", "CONFIRM_PHONE", "CONFIRM_BOOKING", "CONFIRM_CANCELLATION", "BOOKING_SUCCESS", "CANCELLATION_SUCCESS")
+        if self.client and state.current_state not in exact_states:
             try:
                 system_prompt = get_system_prompt(self.clinic_today)
                 dynamic_context = format_dynamic_context(state.model_dump(), history)
@@ -62,7 +83,7 @@ class VoiceInteractionService:
                     f"{system_prompt}\n\n"
                     f"{dynamic_context}\n\n"
                     f"--- CURRENT TURN ---\n"
-                    f"Caller Utterance: \"{message}\"\n"
+                    f"Caller Utterance: \"{clean_msg}\"\n"
                     f"Authoritative Clinical Facts & Response: \"{response_text}\"\n\n"
                     "INSTRUCTIONS FOR YOUR RESPONSE:\n"
                     "1. Answer what the caller asked directly in natural, spoken English (1-2 short sentences).\n"
@@ -90,6 +111,11 @@ class VoiceInteractionService:
                         response_text = refined
             except Exception as exc:
                 logger.debug(f"LLM refinement bypassed ({exc}); using authoritative FSM response.")
+
+        # Cache response for duplicate suppression
+        state.last_processed_utterance = clean_msg
+        state.last_processed_time = now
+        state.last_response_text = response_text
 
         return {
             "session_id": session.session_id,

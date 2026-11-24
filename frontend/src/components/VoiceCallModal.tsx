@@ -59,6 +59,8 @@ export const VoiceCallModal = ({
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const lastDispatchedTextRef = useRef<string>('');
+  const lastDispatchTimeRef = useRef<number>(0);
 
   // Deterministically select and lock ONE consistent, pleasant voice for the entire call
   const getOrSelectVoice = (): SpeechSynthesisVoice | null => {
@@ -186,8 +188,22 @@ export const VoiceCallModal = ({
     const cleanText = userText.trim();
     if (!cleanText || isProcessing) return;
 
+    // Deduplication guard: ignore duplicate identical dispatches within 2.5 seconds
+    const now = Date.now();
+    if (
+      lastDispatchedTextRef.current.toLowerCase() === cleanText.toLowerCase() &&
+      now - lastDispatchTimeRef.current < 2500
+    ) {
+      console.log('[VoiceModal] Deduplicated duplicate utterance:', cleanText);
+      return;
+    }
+
+    lastDispatchedTextRef.current = cleanText;
+    lastDispatchTimeRef.current = now;
+
+    const turnId = Date.now();
     const userMsg: CallTranscriptMessage = {
-      id: Math.random().toString(),
+      id: `user_${turnId}`,
       sender: 'user',
       text: cleanText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -212,7 +228,7 @@ export const VoiceCallModal = ({
       }
 
       const aiMsg: CallTranscriptMessage = {
-        id: Math.random().toString(),
+        id: `ai_${Date.now()}`,
         sender: 'assistant',
         text: res.response_text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -227,7 +243,7 @@ export const VoiceCallModal = ({
     } catch (err: any) {
       console.error('Voice interaction error:', err);
       const fallbackMsg: CallTranscriptMessage = {
-        id: Math.random().toString(),
+        id: `fallback_${Date.now()}`,
         sender: 'assistant',
         text: "I heard you, but had trouble reaching the clinical scheduling engine. Please try once more.",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -279,6 +295,7 @@ export const VoiceCallModal = ({
         // Silence debounce: dispatch if caller stops speaking and browser delays isFinal
         silenceTimerRef.current = window.setTimeout(() => {
           if (interim.trim() && !isProcessing) {
+            setInterimText('');
             handleUserMessage(interim);
           }
         }, 1200);
@@ -289,6 +306,7 @@ export const VoiceCallModal = ({
           clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = null;
         }
+        setInterimText('');
         handleUserMessage(finalTranscript);
       }
     };
