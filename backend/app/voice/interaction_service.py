@@ -8,7 +8,7 @@ from google import genai
 from google.genai import types
 
 from app.core.config import settings
-from app.voice.prompts import get_system_prompt
+from app.voice.prompts import get_system_prompt, format_dynamic_context
 from app.services.availability_service import AvailabilityService
 from app.voice.session_manager import voice_session_manager
 from app.voice.conversation_state import conversation_state_manager
@@ -48,20 +48,29 @@ class VoiceInteractionService:
             session.patient_phone = state.patient_phone
         session.touch()
 
-        # 3. Optional LLM conversational enhancement (if online and not emergency)
-        # If Gemini is available, we can refine the response while preserving all facts
+        # 3. Dynamic LLM conversational enhancement & natural spoken phrasing
+        # The FSM provides authoritative clinical correctness; Gemini delivers natural human flow
         response_text = fsm_result["response_text"]
 
         # Only pass to Gemini if it's general conversational dialogue and not emergency
         if self.client and state.current_state not in ("EMERGENCY_DIVERT", "CONFIRM_PHONE", "CONFIRM_BOOKING"):
             try:
-                system_context = state.to_system_context()
+                system_prompt = get_system_prompt(self.clinic_today)
+                dynamic_context = format_dynamic_context(state.model_dump(), history)
+                
                 prompt = (
-                    f"{system_context}\n\n"
-                    f"Verified Clinic Response to convey: \"{response_text}\"\n"
-                    f"User said: \"{message}\"\n\n"
-                    "Instructions: Rephrase the clinic response in a warm, polite, concise, professional tone (1-2 sentences). "
-                    "Do NOT invent any new doctors, dates, times, or slots not mentioned above. Keep all specific dates, times, and numbers exactly as given."
+                    f"{system_prompt}\n\n"
+                    f"{dynamic_context}\n\n"
+                    f"--- CURRENT TURN ---\n"
+                    f"Caller Utterance: \"{message}\"\n"
+                    f"Authoritative Clinical Facts & Response: \"{response_text}\"\n\n"
+                    "INSTRUCTIONS FOR YOUR RESPONSE:\n"
+                    "1. Answer what the caller asked directly in natural, spoken English (1-2 short sentences).\n"
+                    "2. Ask at most ONE next necessary question. Do NOT ask for information already confirmed in the context.\n"
+                    "3. If the caller made a correction, acknowledge it smoothly without restarting the conversation.\n"
+                    "4. Strictly maintain continuity with the ongoing appointment flow.\n"
+                    "5. NEVER use markdown formatting (no asterisks, no bullets, no symbols, no JSON). Spoken output only.\n"
+                    "6. NEVER invent any doctors, dates, times, or slots not verified in the context above."
                 )
 
                 gemini_resp = self.client.models.generate_content(
@@ -69,12 +78,14 @@ class VoiceInteractionService:
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.2,
-                        max_output_tokens=150,
+                        max_output_tokens=120,
                     ),
                 )
                 if gemini_resp and gemini_resp.text and len(gemini_resp.text.strip()) > 5:
                     refined = gemini_resp.text.strip()
-                    # Ensure critical facts are preserved
+                    # Strip any accidental markdown formatting
+                    refined = refined.replace("*", "").replace("#", "").replace("- ", "").strip()
+                    # Ensure phone numbers or critical appointment details are never dropped
                     if not (state.patient_phone and state.patient_phone not in refined and "heard" in response_text):
                         response_text = refined
             except Exception as exc:
