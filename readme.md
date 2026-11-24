@@ -1,856 +1,416 @@
-MASTER PROMPT: BUILD A PRODUCTION-READY AI VOICE-BASED DOCTOR APPOINTMENT BOOKING SYSTEM
-ROLE AND RESPONSIBILITY
-Act as a Principal Forward Deployed Engineer (FDE), Senior AI Engineer, Software Architect, Backend Engineer, Real-Time Voice Systems Engineer, and Product Designer.
-You have extensive industry experience in:
-•	Production-grade AI applications.
-•	Real-time conversational voice agents.
-•	Pipecat voice pipeline development.
-•	Speech-to-Text (STT) and Text-to-Speech (TTS).
-•	LLMs and function calling.
-•	FastAPI and distributed backend systems.
-•	React and modern frontend engineering.
-•	Database architecture and transaction management.
-•	WebRTC and real-time communication.
-•	Docker, DevOps, CI/CD, and cloud deployment.
-•	Software testing, security, and performance optimization.
-Your responsibility is to transform the project requirements below into a complete, functional, professional, production-oriented software product.
-Think like an engineer delivering a product to a real client, not an AI assistant generating a coding tutorial.
-You must research, architect, implement, test, debug, optimize, and document the complete system.
-The final result must be a working application, not just a frontend prototype or a collection of disconnected code snippets.
-________________________________________
-1. PROJECT OVERVIEW
-Project Name
-AI-Powered Voice-Based Doctor Appointment Booking System
-Product Vision
-Build a real-time AI-powered virtual medical receptionist that allows patients to book, check, and cancel doctor appointments using natural voice conversations.
-A patient should be able to open the web application, click the "Try Call" button, and speak directly with an AI doctor appointment assistant.
-The AI agent should understand the patient's request, identify the required doctor or speciality, check appointment availability, collect the patient's phone number, confirm important details, and execute the requested action.
-The system must also provide a professional web dashboard where users can monitor the conversation, view doctors, explore available slots, and manage appointments in real time.
-Main Objectives
-1.	Build a real-time voice agent using Pipecat.
-2.	Integrate ElevenLabs Speech-to-Text.
-3.	Integrate ElevenLabs Text-to-Speech.
-4.	Integrate Google Gemini as the LLM.
-5.	Implement function calling for appointment operations.
-6.	Build a robust appointment management backend.
-7.	Develop a premium React/Next.js dashboard.
-8.	Implement real-time transcript and appointment synchronization.
-9.	Provide a realistic phone-style calling experience.
-10.	Produce comprehensive engineering documentation in PDF format.
-________________________________________
-2. COMPLETE TECHNOLOGY STACK
-Use the following technologies as the primary stack.
-Layer	Technology
-Programming language	Python
-Voice framework	Pipecat
-Speech-to-Text	ElevenLabs STT
-Text-to-Speech	ElevenLabs TTS
-LLM	Google Gemini
-Voice Activity Detection	Silero VAD
-Backend framework	FastAPI
-Frontend framework	React or Next.js
-Frontend language	TypeScript
-Styling	Tailwind CSS
-UI components	shadcn/ui where appropriate
-Database	SQLite initially, PostgreSQL-ready
-ORM	SQLAlchemy
-Data validation	Pydantic
-Real-time communication	WebRTC and WebSocket as appropriate
-Testing	Pytest, frontend testing tools
-Containerization	Docker and Docker Compose
-Version control	Git and GitHub
-You may introduce additional libraries if they materially improve the product.
-However:
-•	Do not introduce unnecessary dependencies.
-•	Do not replace the required technologies without explaining why.
-•	Verify compatibility between the actual installed package versions.
-•	Use official documentation to determine supported APIs and integration methods.
-•	Pin compatible dependency versions.
-________________________________________
-3. DEEP TECHNICAL RESEARCH
-Before implementation, conduct comprehensive technical research.
-Research the latest compatible documentation and implementation patterns for:
-Voice Engineering
-•	Pipecat architecture and pipeline lifecycle.
-•	Pipecat browser audio transports.
-•	ElevenLabs STT integration.
-•	ElevenLabs TTS integration.
-•	Google Gemini integration.
-•	Gemini function calling.
-•	Silero VAD.
-•	Speech interruption and barge-in.
-•	Turn detection and conversational context.
-•	Audio streaming and latency optimization.
-Backend Engineering
-•	FastAPI architecture.
-•	Async Python.
-•	SQLAlchemy.
-•	Database transaction management.
-•	WebSocket implementation.
-•	Pydantic validation.
-•	API versioning.
-•	Exception handling.
-•	Background processing.
-Frontend Engineering
-•	React or Next.js architecture.
-•	TypeScript.
-•	Tailwind CSS.
-•	shadcn/ui.
-•	WebRTC browser audio.
-•	WebSocket integration.
-•	Real-time transcript rendering.
-•	Audio visualization.
-•	Call-state management.
-System Engineering
-•	WebRTC versus WebSocket trade-offs.
-•	Browser-to-Pipecat connectivity.
-•	Real-time event synchronization.
-•	Concurrent appointment booking.
-•	Database consistency.
-•	Security and privacy.
-•	Docker deployment.
-•	Logging and monitoring.
-Research Rules
-1.	Prioritize official documentation.
-2.	Use relevant GitHub repositories and engineering references.
-3.	Research current stable versions.
-4.	Verify that all integrations are actually supported.
-5.	Identify deprecated APIs and incompatible package versions.
-6.	Provide source links.
-7.	Distinguish verified information from recommendations.
-8.	Do not invent API methods, model names, benchmarks, or integration capabilities.
-Prepare a technical research report before coding.
-________________________________________
-4. SYSTEM ARCHITECTURE
-Design a modular architecture with clearly separated responsibilities.
-The system should contain:
-1.	Frontend Dashboard.
-2.	Browser Audio Capture.
-3.	Real-Time Audio Transport.
-4.	Pipecat Voice Pipeline.
-5.	Silero VAD.
-6.	ElevenLabs STT.
-7.	Gemini LLM.
-8.	Function Calling and Tool Execution.
-9.	Appointment Management Service.
-10.	Doctor Availability Service.
-11.	ElevenLabs TTS.
-12.	Database Layer.
-13.	FastAPI Backend.
-14.	WebSocket Event Manager.
-15.	Real-Time Dashboard Synchronization.
-Required Voice Pipeline
-Implement the following logical pipeline:
-Browser Microphone
-→ Audio Transport
-→ Silero VAD
-→ ElevenLabs STT
-→ Gemini LLM
-→ Function Calling
-→ Backend Business Logic
-→ Gemini Response
-→ ElevenLabs TTS
-→ Browser Audio Output.
-The exact pipeline ordering and frame-processing approach must follow the current Pipecat architecture.
-Provide architecture diagrams explaining:
-•	Audio flow.
-•	LLM processing.
-•	Tool execution.
-•	Database interaction.
-•	Frontend/backend communication.
-•	Real-time event broadcasting.
-Explain how every component communicates with the others.
-________________________________________
-5. VOICE AGENT IMPLEMENTATION
-Build a natural, real-time AI receptionist.
-Conversation Requirements
-The agent must:
-•	Understand natural language.
-•	Recognize doctor specialities.
-•	Understand appointment dates and times.
-•	Maintain conversation context.
-•	Ask relevant follow-up questions.
-•	Handle interruptions.
-•	Handle unclear speech.
-•	Repeat important information.
-•	Avoid executing actions without required confirmation.
-•	Respond naturally and professionally.
-•	Handle failures gracefully.
-The agent must not pretend an operation succeeded unless the backend confirms success.
-Required Function Tools
-Implement these three tools inside the Pipecat voice pipeline.
-TOOL 1: check_doctor_availability
-Purpose: Check available doctors and appointment slots.
-Input parameters:
-•	doctor_name (optional)
-•	speciality (optional)
-•	appointment_date (optional)
-Expected output:
-•	Doctor ID.
-•	Doctor name.
-•	Speciality.
-•	Available dates.
-•	Available time slots.
-Requirements:
-•	Support searches by doctor name.
-•	Support speciality-based searches.
-•	Support date-based searches.
-•	Return structured results.
-•	Handle unavailable doctors and dates.
-•	Offer alternative slots.
-TOOL 2: book_appointment
-Purpose: Book a selected appointment for a patient.
-Input parameters:
-•	patient_phone_number.
-•	doctor_id.
-•	appointment_date.
-•	appointment_time.
-•	patient_name, if required by the product workflow.
-Requirements:
-1.	Collect all required information.
-2.	Validate the phone number.
-3.	Repeat the number to the patient.
-4.	Ask the patient to confirm it.
-5.	Confirm the doctor and appointment slot.
-6.	Ask for explicit booking confirmation.
-7.	Revalidate slot availability.
-8.	Execute the database transaction.
-9.	Prevent duplicate bookings and double booking.
-10.	Return a booking confirmation ID.
-11.	Inform the patient of the result.
-Do not book an appointment before the patient confirms the details.
-TOOL 3: cancel_appointment
-Purpose: Cancel an existing appointment using the phone number spoken by the patient.
-Input parameters:
-•	patient_phone_number.
-•	appointment_id (optional).
-•	doctor_name (optional).
-•	appointment_date (optional).
-Requirements:
-1.	Collect the patient's phone number.
-2.	Repeat the phone number.
-3.	Ask for confirmation.
-4.	Find matching appointments.
-5.	If multiple appointments exist, ask which one to cancel.
-6.	Explain which appointment will be cancelled.
-7.	Ask for explicit cancellation confirmation.
-8.	Execute cancellation.
-9.	Update the database.
-10.	Return the cancellation result.
-Never cancel without explicit confirmation.
-Patient Identification Restrictions
-The patient is identified only through the phone number spoken during the conversation.
-Strictly do not implement:
-•	Login.
-•	OTP.
-•	Caller ID.
-•	External identity authentication.
-Important security limitation:
-A spoken phone number and verbal confirmation do not establish real-world identity. Clearly document the resulting unauthorized-access and cancellation risks. Do not claim that this process securely verifies patient identity.
-________________________________________
-6. CONVERSATIONAL DESIGN
-Create a professional AI receptionist personality.
-Example introduction:
-"Hello! Welcome to our clinic. I'm your AI appointment assistant. How can I help you today?"
-Example availability conversation:
-Patient: "I want to see a cardiologist tomorrow."
-Agent:
-•	Understand the speciality.
-•	Check available cardiologists.
-•	Retrieve tomorrow's slots.
-•	Present available options naturally.
-Example booking conversation:
-Patient: "Book the 10 AM appointment."
-Agent:
-•	Confirm the selected doctor.
-•	Confirm the date and time.
-•	Request the phone number.
-•	Repeat the phone number.
-•	Ask for confirmation.
-•	Execute the booking tool.
-•	Provide the booking ID.
-Example cancellation conversation:
-Patient: "I want to cancel my appointment."
-Agent:
-•	Request the spoken phone number.
-•	Retrieve matching appointments.
-•	Ask which appointment to cancel if necessary.
-•	Repeat the phone number.
-•	Confirm the appointment details.
-•	Request explicit cancellation confirmation.
-•	Execute cancellation.
-•	Confirm the result.
-Also handle:
-•	Invalid phone numbers.
-•	Unavailable slots.
-•	Missing information.
-•	Multiple matching appointments.
-•	LLM failures.
-•	STT failures.
-•	TTS failures.
-•	Database errors.
-•	Network disconnections.
-•	Patient interruptions.
-The agent must not provide medical diagnoses or treatment advice. It is an administrative appointment assistant only.
-________________________________________
-7. BACKEND DEVELOPMENT
-Use FastAPI and build a modular backend.
-Required Modules
-•	Configuration management.
-•	Database connection.
-•	SQLAlchemy models.
-•	Pydantic schemas.
-•	Doctor service.
-•	Speciality service.
-•	Availability service.
-•	Appointment service.
-•	Booking service.
-•	Cancellation service.
-•	Voice agent integration.
-•	WebSocket management.
-•	Logging and exception handling.
-Required Database Entities
-Doctor
-•	id.
-•	name.
-•	speciality.
-•	experience.
-•	description.
-•	active status.
-Availability
-•	id.
-•	doctor_id.
-•	appointment_date.
-•	start_time.
-•	end_time.
-•	slot_duration.
-•	availability_status.
-Appointment
-•	id.
-•	patient_phone_number.
-•	patient_name, if collected.
-•	doctor_id.
-•	appointment_date.
-•	appointment_time.
-•	status.
-•	created_at.
-•	updated_at.
-Use appropriate foreign keys, constraints, indexes, and relationships.
-Database Requirements
-•	Persistent appointment storage.
-•	Atomic booking transactions.
-•	Prevention of double booking.
-•	Appropriate cancellation handling.
-•	Consistent appointment statuses.
-•	Proper timezone handling.
-•	Database migrations.
-•	Seed data for mock doctors and appointments.
-Design the initial SQLite implementation so it can be migrated to PostgreSQL with minimal architectural changes.
-________________________________________
-8. API DEVELOPMENT
-Create documented REST APIs.
-Required endpoints should include:
-•	GET /api/v1/doctors
-•	GET /api/v1/doctors/{doctor_id}
-•	GET /api/v1/specialities
-•	GET /api/v1/availability
-•	POST /api/v1/appointments
-•	GET /api/v1/appointments
-•	GET /api/v1/appointments/{appointment_id}
-•	POST /api/v1/appointments/{appointment_id}/cancel
-•	GET /api/v1/dashboard/stats
-•	WebSocket endpoint for real-time dashboard events.
-Adapt endpoint design where needed.
-For every API document:
-•	HTTP method.
-•	Endpoint.
-•	Purpose.
-•	Request schema.
-•	Response schema.
-•	Validation.
-•	Error handling.
-•	Example request.
-•	Example response.
-Expose interactive API documentation using FastAPI OpenAPI/Swagger.
-________________________________________
-9. FRONTEND DASHBOARD
-Build a visually exceptional healthcare SaaS dashboard.
-Use React or Next.js, TypeScript, and Tailwind CSS.
-The design should feel like a professionally designed commercial product.
-Avoid:
-•	Generic AI-generated dashboard designs.
-•	Excessive gradients.
-•	Unnecessary animations.
-•	Overcrowded cards.
-•	Excessive text.
-•	Inconsistent spacing.
-•	Unnecessary UI elements.
-Focus on visual hierarchy, typography, spacing, usability, and responsive design.
-Main Dashboard
-Display:
-•	Total doctors.
-•	Available doctors.
-•	Total appointments.
-•	Confirmed appointments.
-•	Cancelled appointments.
-•	Recent activity.
-Doctor Management
-Display:
-•	Doctor name.
-•	Speciality.
-•	Experience.
-•	Availability.
-•	Available slots.
-Appointment Management
-Display:
-•	Appointment ID.
-•	Patient phone number.
-•	Doctor.
-•	Speciality.
-•	Date.
-•	Time.
-•	Booking status.
-•	Cancellation status.
-Support useful search, filtering, and status indicators.
-Voice Call Interface
-When the user clicks "Try Call", open a realistic phone-style call interface.
-Required call states:
-1.	Idle.
-2.	Connecting.
-3.	Ringing, if applicable to the connection design.
-4.	Connected.
-5.	Ended.
-6.	Failed or disconnected.
-Display:
-•	Caller or patient name.
-•	AI agent name.
-•	Call duration.
-•	Connection status.
-•	Mute/unmute button.
-•	End-call button.
-•	Live transcript.
-•	User speaking indicator.
-•	Agent speaking indicator.
-•	Audio waveform.
-•	Booking confirmation card.
-•	Cancellation confirmation card.
-The waveform must respond to actual microphone or audio stream levels rather than simply playing a decorative animation.
-Add appropriate transition effects.
-Add optional ring and end-call sounds with a mute or sound preference.
-Live Transcript
-Display the conversation in real time.
-Distinguish:
-•	Patient messages.
-•	AI agent messages.
-•	Tool execution events.
-•	Booking events.
-•	Cancellation events.
-Use clear timestamps where appropriate.
-Live Dashboard Updates
-When the agent successfully books or cancels an appointment:
-•	Update appointment rows.
-•	Highlight the affected appointment.
-•	Update dashboard statistics.
-•	Add an activity feed event.
-•	Display an in-call confirmation card.
-Use WebSockets or an appropriate real-time event mechanism.
-________________________________________
-10. REAL-TIME COMMUNICATION
-Research and select the correct transport architecture for connecting the browser to Pipecat.
-Evaluate:
-•	WebRTC.
-•	WebSocket.
-•	Pipecat-supported transports.
-Explain the selection based on:
-•	Audio latency.
-•	Bidirectional communication.
-•	Browser compatibility.
-•	Implementation complexity.
-•	Reliability.
-•	Scalability.
-Use WebRTC where appropriate for live audio and WebSockets for dashboard events and transcript updates where appropriate.
-Do not assume the same transport must handle every communication type.
-________________________________________
-11. PROJECT STRUCTURE
-Create a professional, maintainable folder structure.
-Separate:
-Backend:
-•	app/
-•	api/
-•	core/
-•	database/
-•	models/
-•	schemas/
-•	services/
-•	repositories/
-•	voice/
-•	voice/tools/
-•	websocket/
-•	tests/
-Frontend:
-•	app/ or src/
-•	components/
-•	components/dashboard/
-•	components/doctors/
-•	components/appointments/
-•	components/voice/
-•	hooks/
-•	services/
-•	types/
-•	utils/
-Infrastructure:
-•	Dockerfile.
-•	docker-compose.yml.
-•	.env.example.
-•	requirements.txt or pyproject.toml.
-•	package.json.
-•	README.md.
-•	deployment documentation.
-You may adjust this structure based on the architecture, but maintain clean separation of responsibilities.
-________________________________________
-12. IMPLEMENTATION ROADMAP
-Implement the application in the following stages.
-Phase 1: Research and Architecture
-•	Analyze requirements.
-•	Research official documentation.
-•	Validate integrations.
-•	Choose compatible package versions.
-•	Design architecture.
-•	Design database.
-•	Define APIs.
-•	Identify risks.
-•	Prepare roadmap.
-Phase 2: Backend Foundation
-•	Initialize FastAPI.
-•	Configure environment.
-•	Configure database.
-•	Implement models.
-•	Implement schemas.
-•	Add seed data.
-•	Implement doctor APIs.
-Phase 3: Appointment Business Logic
-•	Implement availability checking.
-•	Implement slot generation.
-•	Implement booking.
-•	Implement cancellation.
-•	Add transaction management.
-•	Add concurrency protection.
-•	Write unit tests.
-Phase 4: Pipecat Voice Agent
-•	Initialize Pipecat.
-•	Integrate transport.
-•	Integrate VAD.
-•	Integrate ElevenLabs STT.
-•	Integrate Gemini.
-•	Implement function calling.
-•	Integrate ElevenLabs TTS.
-•	Implement conversation management.
-•	Implement interruptions and error recovery.
-Phase 5: Frontend Dashboard
-•	Build design system.
-•	Build dashboard layout.
-•	Build doctor management.
-•	Build availability view.
-•	Build appointment management.
-•	Build phone-call interface.
-•	Build live transcript.
-•	Build waveform visualization.
-Phase 6: Real-Time Integration
-•	Connect browser audio.
-•	Connect frontend to Pipecat.
-•	Implement WebSocket events.
-•	Stream transcript updates.
-•	Synchronize booking events.
-•	Synchronize cancellation events.
-Phase 7: Testing and Validation
-•	Unit tests.
-•	API tests.
-•	Database tests.
-•	Voice tool tests.
-•	Integration tests.
-•	Frontend tests.
-•	End-to-end tests.
-•	Concurrent booking tests.
-•	Failure recovery tests.
-Phase 8: Production Preparation
-•	Configure Docker.
-•	Configure environment variables.
-•	Implement structured logging.
-•	Add health checks.
-•	Perform security review.
-•	Optimize performance.
-•	Prepare deployment.
-•	Write complete documentation.
-________________________________________
-13. END-TO-END ACCEPTANCE TESTS
-The finished application must pass these workflows.
-Test 1: Doctor Availability
-Patient requests a cardiologist for a particular date.
-Expected:
-•	Correct speciality recognition.
-•	Doctor retrieval.
-•	Slot retrieval.
-•	Natural spoken response.
-Test 2: Successful Booking
-Patient selects an available slot.
-Expected:
-•	Phone number collection.
-•	Phone number readback.
-•	Verbal confirmation.
-•	Backend booking execution.
-•	Database persistence.
-•	Booking ID returned.
-•	Dashboard updated.
-Test 3: Successful Cancellation
-Patient requests cancellation.
-Expected:
-•	Spoken phone number collection.
-•	Appointment lookup.
-•	Appointment selection if multiple matches exist.
-•	Number confirmation.
-•	Explicit cancellation confirmation.
-•	Database status updated.
-•	Dashboard updated.
-Test 4: Unavailable Slot
-Expected:
-•	No invalid booking.
-•	Alternative slots offered.
-Test 5: Invalid Phone Number
-Expected:
-•	Validation error.
-•	Agent requests clarification.
-•	No booking or cancellation.
-Test 6: Concurrent Booking
-Two users attempt to book the same slot.
-Expected:
-•	Only one successful booking.
-•	Other request receives an appropriate conflict response.
-Test 7: Real-Time Dashboard
-During an active call:
-Expected:
-•	Transcript updates.
-•	Agent speaking indicator works.
-•	Waveform reacts to real audio.
-•	Appointment data updates.
-•	Activity feed updates.
-Test 8: Service Failure
-Simulate an STT, LLM, TTS, or network failure.
-Expected:
-•	Graceful error handling.
-•	Useful user feedback.
-•	No false booking confirmation.
-•	Appropriate recovery or termination.
-________________________________________
-14. TESTING AND CODE QUALITY
-Follow production engineering practices.
-Requirements:
-•	Clean architecture.
-•	Separation of concerns.
-•	Type hints.
-•	Pydantic validation.
-•	Async operations where appropriate.
-•	Meaningful exception handling.
-•	Structured logging.
-•	Reusable components.
-•	Secure configuration.
-•	No hardcoded credentials.
-•	No unnecessary global state.
-•	Proper documentation.
-•	Reproducible setup.
-Use pytest for backend testing.
-Test:
-•	Availability logic.
-•	Booking logic.
-•	Cancellation logic.
-•	Phone number validation.
-•	Duplicate prevention.
-•	Database transactions.
-•	Voice tool execution.
-•	API integration.
-Clearly identify which tests have actually been executed and their results.
-________________________________________
-15. SECURITY AND PRIVACY
-Evaluate:
-•	API key protection.
-•	Input validation.
-•	SQL injection prevention.
-•	CORS configuration.
-•	Secure transport.
-•	Environment variable management.
-•	Logging of sensitive data.
-•	Patient phone number exposure.
-•	Data retention.
-•	Database backups.
-•	Rate limiting.
-•	Dependency vulnerabilities.
-Do not log complete phone numbers unnecessarily.
-Document the security limitations caused by identifying patients solely through spoken phone numbers.
-Do not represent this prototype's spoken-number confirmation as secure identity authentication.
-The application is an administrative appointment booking assistant, not a medical diagnosis system.
-________________________________________
-16. DEVOPS AND DEPLOYMENT
-Provide:
-•	Backend Dockerfile.
-•	Frontend Dockerfile if appropriate.
-•	Docker Compose.
-•	Environment configuration.
-•	Database initialization.
-•	Health checks.
-•	CI/CD recommendations.
-•	Production deployment instructions.
-•	Logging configuration.
-•	Monitoring recommendations.
-•	Rollback strategy.
-Provide exact commands for:
-1.	Environment setup.
-2.	Dependency installation.
-3.	Database initialization.
-4.	Backend startup.
-5.	Frontend startup.
-6.	Running tests.
-7.	Docker startup.
-8.	Production deployment.
-The application must be easy to run locally.
-________________________________________
-17. PERFORMANCE AND RELIABILITY
-Evaluate:
-•	Voice pipeline latency.
-•	STT processing time.
-•	LLM response time.
-•	TTS generation time.
-•	End-to-end response latency.
-•	WebSocket reliability.
-•	Concurrent connections.
-•	Database performance.
-•	Appointment transaction reliability.
-Define performance targets before testing.
-Measure actual results and identify bottlenecks.
-Do not fabricate benchmarks or claim optimizations without verification.
-________________________________________
-18. FINAL PDF ENGINEERING DOCUMENTATION
-Create a comprehensive professional PDF document.
-Document Title
-AI Voice-Based Doctor Appointment Booking System: Complete Technical Research, Architecture, Implementation and Deployment Guide
-The PDF must include:
-1.	Executive summary.
-2.	Product vision.
-3.	Problem statement.
-4.	Functional requirements.
-5.	Non-functional requirements.
-6.	Technology stack analysis.
-7.	Technical research.
-8.	Official documentation references.
-9.	System architecture.
-10.	Voice pipeline architecture.
-11.	Audio transport architecture.
-12.	Function calling architecture.
-13.	Database ER diagram.
-14.	Database schema.
-15.	API specifications.
-16.	Complete project structure.
-17.	Step-by-step backend implementation.
-18.	Step-by-step Pipecat implementation.
-19.	ElevenLabs integration.
-20.	Gemini integration.
-21.	Silero VAD integration.
-22.	Frontend implementation.
-23.	Phone-call UI implementation.
-24.	Real-time communication.
-25.	Booking and cancellation workflows.
-26.	Testing strategy.
-27.	Security considerations.
-28.	Docker configuration.
-29.	Deployment instructions.
-30.	Troubleshooting.
-31.	Performance evaluation.
-32.	Production readiness checklist.
-33.	Future improvements.
-34.	References.
-PDF QUALITY
-The PDF must have:
-•	Professional technical-document design.
-•	Cover page.
-•	Table of contents.
-•	Consistent typography.
-•	Proper section hierarchy.
-•	Page numbers.
-•	Headers and footers.
-•	Readable code blocks.
-•	Architecture diagrams.
-•	Workflow diagrams.
-•	Database tables.
-•	API tables.
-•	Clickable references.
-•	Clear implementation instructions.
-Do not produce a shallow summary.
-The document must be detailed enough for another engineer to reproduce the project from scratch.
-________________________________________
-19. FDE ENGINEERING EXPECTATIONS
-Act as an engineer responsible for delivering a product to a client.
-Follow these principles:
-1.	Understand the business problem before coding.
-2.	Research before selecting implementation patterns.
-3.	Design before implementing.
-4.	Keep the client informed about technical decisions.
-5.	Explain trade-offs.
-6.	Build incrementally.
-7.	Test each module.
-8.	Debug actual failures.
-9.	Verify integrations.
-10.	Deliver reproducible code.
-11.	Maintain technical documentation.
-12.	Clearly communicate limitations.
-Do not generate the entire project as a single unstructured code dump.
-Maintain a project implementation checklist and track:
-•	Not started.
-•	In progress.
-•	Implemented.
-•	Tested.
-•	Verified.
-Never mark a task as tested or verified unless it has actually been tested.
-________________________________________
-20. WORKING MODE — IMPORTANT
-Do not immediately start coding.
-Work in the following order:
-STEP 1 — Requirement Analysis
-Analyze every requirement and identify missing details, assumptions, constraints, and risks.
-STEP 2 — Technical Research
-Research the current documentation and verify compatibility of all required technologies.
-STEP 3 — Architecture Design
-Create architecture diagrams, component responsibilities, data flows, and database design.
-STEP 4 — Implementation Roadmap
-Create a detailed, dependency-aware development roadmap.
-STEP 5 — Client Review
-Present the research findings, architecture, technology decisions, and roadmap.
-Wait for my approval before beginning the main implementation.
-STEP 6 — Incremental Development
-Implement one module at a time. Provide complete code, commands, explanations, and tests.
-STEP 7 — Integration and Testing
-Connect all components and validate the complete end-to-end workflows.
-STEP 8 — Final Delivery
-Deliver the working source code, README, deployment configuration, test results, and comprehensive PDF engineering guide.
-________________________________________
-FINAL SUCCESS CRITERIA
-The project is complete only when:
-•	The browser can establish a real voice session.
-•	The Pipecat pipeline processes live audio.
-•	ElevenLabs STT works.
-•	Gemini understands the conversation.
-•	Function calling executes real backend tools.
-•	ElevenLabs TTS generates spoken responses.
-•	Availability checking works.
-•	Booking works and persists in the database.
-•	Cancellation works and persists in the database.
-•	Phone-number readback and confirmation are enforced.
-•	Double booking is prevented.
-•	The dashboard displays live transcripts.
-•	The phone-style call interface works.
-•	Appointment data updates in real time.
-•	Tests are executed and documented.
-•	Setup and deployment instructions are reproducible.
-•	The complete professional PDF guide is generated.
-ULTIMATE OBJECTIVE:
-Deliver a complete, working, scalable, maintainable, and professionally designed AI voice-based doctor appointment booking system that demonstrates real-world Forward Deployed Engineering capabilities.
-The final product must be something I can confidently demonstrate to a client, explain in a technical interview, and extend into a commercial application.
-Execution instruction: Start with requirement analysis, technical research, architecture diagrams, and an implementation roadmap. Wait for my approval before coding.
+# CarePoint Health — AI Voice-Based Doctor Appointment Booking System
 
+[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Pipecat](https://img.shields.io/badge/Pipecat-1.17+-792EE5.svg)](https://github.com/pipecat-ai/pipecat)
+[![Google Gemini](https://img.shields.io/badge/LLM-Gemini_Flash-4285F4.svg)](https://ai.google.dev/)
+[![ElevenLabs](https://img.shields.io/badge/Voice-ElevenLabs_STT%2FTTS-black.svg)](https://elevenlabs.io/)
+[![React](https://img.shields.io/badge/Frontend-React_19_+_TypeScript-61DAFB.svg)](https://react.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind_CSS-38B2AC.svg)](https://tailwindcss.com/)
+[![Tests](https://img.shields.io/badge/Tests-51_Passed-brightgreen.svg)](https://pytest.org/)
+
+An enterprise-grade, real-time conversational AI medical receptionist system for **CarePoint Health Medical Clinic**. Patients can check physician availability, book consultations, and cancel appointments using natural voice over WebRTC. The system provides zero double-booking concurrency guarantees, mandatory verbal confirmation guardrails, real-time WebSocket dashboard sync, and live frequency waveform visualization.
+
+---
+
+## Table of Contents
+
+1. [Executive Summary & Architecture](#executive-summary--architecture)
+2. [Technology Stack](#technology-stack)
+3. [Key Features](#key-features)
+4. [Voice Pipeline & Safety Guardrails](#voice-pipeline--safety-guardrails)
+5. [Project Structure](#project-structure)
+6. [Prerequisites & Environment Configuration](#prerequisites--environment-configuration)
+7. [Step-by-Step Local Setup & Execution](#step-by-step-local-setup--execution)
+8. [API Documentation & WebSocket Endpoints](#api-documentation--websocket-endpoints)
+9. [Automated Testing & Quality Verification](#automated-testing--quality-verification)
+10. [Database Schema & Concurrency Design](#database-schema--concurrency-design)
+11. [Troubleshooting & Common Questions](#troubleshooting--common-questions)
+
+---
+
+## Executive Summary & Architecture
+
+```
+                       ┌────────────────────────────────────────────────────────┐
+                       │                   PATIENT BROWSER                      │
+                       │   React + TypeScript + Tailwind + Web Audio Analyser   │
+                       └──────────────┬────────────────────────▲────────────────┘
+                                      │                        │
+                    WebRTC SDP Offer / Answer       WebSocket Live Events
+                   (Browser Mic Audio Stream)      (appointment_booked/cancelled)
+                                      │                        │
+                                      ▼                        │
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                           FASTAPI BACKEND SERVICE                             │
+│                                                                               │
+│  ┌───────────────────────┐   ┌────────────────────────┐   ┌────────────────┐ │
+│  │ WebRTC Voice Pipeline │   │ WebSocket Event Engine │   │ REST API /v1   │ │
+│  │ (SmallWebRTC Transport│   │  (Active Client Broad- │   │ - Doctors      │ │
+│  │  + Session Manager)   │   │   casting with Lock)   │   │ - Availability │ │
+│  └───────────┬───────────┘   └───────────▲────────────┘   │ - Appointments │ │
+│              │                           │                │ - Health       │ │
+│              ▼                           │                └────────┬───────┘ │
+│  ┌───────────────────────┐               │                         │         │
+│  │ Pipecat Pipeline 1.x  │               │                         │         │
+│  │ - Silero VAD          │               │                         │         │
+│  │ - ElevenLabs STT      │               │                         │         │
+│  │ - Google Gemini Flash │               │                         │         │
+│  │ - ElevenLabs TTS      │               │                         │         │
+│  └───────────┬───────────┘               │                         │         │
+│              │ Function Calling          │ Broadcast Triggers      │         │
+│              ▼                           │                         ▼         │
+│  ┌───────────────────────────────────────┴─────────────────────────────────┐ │
+│  │          APPOINTMENT SERVICE & BUSINESS LOGIC LAYER                     │ │
+│  │  - Phone Normalization & Speech Readback Formatting                     │ │
+│  │  - Mandatory Verbal Readback & Action Confirmation Guards               │ │
+│  │  - Two-Stage Cancellation with Disambiguation Engine                    │ │
+│  │  - Dynamic Discrete 30-min Slot Generator & Nearby Alternatives         │ │
+│  └───────────────────────────────────────┬─────────────────────────────────┘ │
+│                                          │                                   │
+│                                          ▼                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │                SQLITE WITH WAL MODE & REPOSITORIES                      │ │
+│  │  - Partial Unique Index: uq_active_slot (doctor_id, date, time)         │ │
+│  │    WHERE status = 'confirmed'                                           │ │
+│  │  - Cascading Foreign Keys & Strict ACID Transaction Isolation           │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Technology Stack
+
+| Layer | Component | Technology Used | Version / Specification |
+|---|---|---|---|
+| **Voice Framework** | Real-time Orchestration | **Pipecat AI** | `>=1.17.0` |
+| **STT** | Speech-to-Text | **ElevenLabs Real-time STT** | Single-channel PCM 16kHz |
+| **LLM** | Conversational Reasoning | **Google Gemini Flash** | `gemini-2.5-flash` via `google-genai` |
+| **TTS** | Speech Synthesis | **ElevenLabs Turbo** | `eleven_turbo_v2_5` |
+| **VAD** | Voice Activity Detection | **Silero VAD** | `silero-vad>=5.1.2` |
+| **WebRTC Transport** | Audio Transport | **SmallWebRTCTransport** / `aiortc` | ICE, SDP, Datachannel |
+| **Backend Framework** | Web / REST / WebSocket | **FastAPI** | `>=0.115.0` + `uvicorn` |
+| **Database & ORM** | Relational Persistence | **SQLite WAL Mode** + **SQLAlchemy** | `>=2.0.35` (PostgreSQL ready) |
+| **Frontend** | Clinical Dashboard UI | **React 19**, **Vite**, **TypeScript** | Strict typings, zero warnings |
+| **Styling & Icons** | Clinical Healthcare Design | **Tailwind CSS**, **Lucide React** | Medical teal & slate design |
+| **Testing** | Automated Quality Suite | **Pytest**, **pytest-asyncio** | 51 passing tests (unit, e2e, ws) |
+
+---
+
+## Key Features
+
+1. **Conversational Spoken Booking:**
+   - Understands colloquial dates (*"tomorrow"*, *"next Monday"*), doctor specialties (*"Cardiologist"*, *"Skin specialist"*), and natural telephone digits (*"nine eight seven double six"*).
+2. **Strict Server-Side Safety Guards:**
+   - **Phone Readback Guard:** Voice tool execution refuses booking unless `phone_readback_confirmed=True`.
+   - **Action Confirmation Guard:** Refuses state alteration unless the patient explicitly verifies the exact appointment details (`action_confirmed=True`).
+   - **Emergency Boundary:** Detects medical emergency words and immediately instructs patients to call **112 / 911** or go to an emergency room.
+3. **Zero Double-Booking Concurrency Engine:**
+   - Backed by an atomic partial unique index on `(doctor_id, appointment_date, appointment_time) WHERE status = 'confirmed'`.
+   - Tested under high-contention parallel multi-threading: exactly 1 booking succeeds; all 9 concurrent requests fail gracefully with alternative suggestions.
+4. **Two-Stage Spoken Cancellation:**
+   - Stage 1: Disambiguates between multiple active appointments for a phone number.
+   - Stage 2: Requests explicit patient confirmation before executing soft cancellation (`status='cancelled'`).
+5. **Real-Time Clinical Dashboard:**
+   - Instant WebSocket sync across all open browsers on `appointment_booked` or `appointment_cancelled`.
+   - Web Audio API canvas visualizer displaying real-time speech oscillations during conversation.
+   - Live conversational transcript distinguishing Patient speech, Assistant speech, and Tool execution.
+
+---
+
+## Voice Pipeline & Safety Guardrails
+
+### Autonomous Tools Registered with Gemini
+The assistant interacts with the clinic database using three function calling schemas:
+
+1. `check_doctor_availability(doctor_name, speciality, appointment_date)`:
+   - Scans 30-minute consultation windows across matching physicians and returns unbooked slots.
+2. `book_appointment(patient_phone_number, doctor_id, appointment_date, appointment_time, patient_name, phone_readback_confirmed, action_confirmed)`:
+   - Performs atomic validation, normalizes phone numbers to E.164, and records confirmation.
+3. `cancel_appointment(patient_phone_number, appointment_id, phone_readback_confirmed, action_confirmed)`:
+   - Finds patient reservations and safely processes verified cancellation.
+
+---
+
+## Project Structure
+
+```
+voice-based doctor appointmen/
+├── .env                                # Local environment secrets & config
+├── .env.example                        # Template environment configuration
+├── appointments.db                     # SQLite database (WAL mode enabled)
+├── readme.md                           # Master system documentation
+├── Voice_Appointment_System_Phase1...   # Specification & research PDF
+│
+├── backend/                            # FastAPI Python Backend
+│   ├── requirements.txt                # Pinned production dependencies
+│   ├── app/
+│   │   ├── main.py                     # App lifespan, CORS, router mounting
+│   │   ├── api/v1/
+│   │   │   ├── router.py               # Aggregated API v1 endpoints
+│   │   │   └── endpoints/
+│   │   │       ├── health.py           # Health probe (/health)
+│   │   │       ├── doctors.py          # Physician directory & specialty routes
+│   │   │       ├── availability.py     # Slot availability calculation endpoints
+│   │   │       ├── appointments.py     # REST booking, listing, & cancellation
+│   │   │       ├── dashboard.py        # Real-time statistics aggregation
+│   │   │       ├── voice.py            # WebRTC signaling (SDP offer/answer)
+│   │   │       └── events_ws.py        # WebSocket real-time event broadcaster
+│   │   ├── core/
+│   │   │   ├── config.py               # Pydantic BaseSettings & timezone parser
+│   │   │   ├── phone_utils.py          # E.164 normalization & speech formatters
+│   │   │   └── websocket_manager.py    # Thread-safe WebSocket ConnectionManager
+│   │   ├── database/
+│   │   │   ├── session.py              # Engine creation, PRAGMA WAL, sessionmaker
+│   │   │   └── seed.py                 # Idempotent database seeder (8 doctors, 96 windows)
+│   │   ├── models/                     # SQLAlchemy declarative models
+│   │   │   ├── doctor.py
+│   │   │   ├── availability.py
+│   │   │   └── appointment.py
+│   │   ├── repositories/               # Data access abstraction layer
+│   │   │   ├── doctor_repository.py
+│   │   │   └── appointment_repository.py
+│   │   ├── schemas/                    # Pydantic input/output validation models
+│   │   ├── services/                   # Core business logic
+│   │   │   ├── availability_service.py # Slot generation & alternatives
+│   │   │   └── appointment_service.py  # Atomic booking & cancellation logic
+│   │   └── voice/                      # Pipecat & AI integration stack
+│   │       ├── prompts.py              # Receptionist system prompt & safety boundaries
+│   │       ├── session_manager.py      # WebRTC call session registry
+│   │       ├── pipeline.py             # SmallWebRTC, ElevenLabs, Gemini, Silero pipeline
+│   │       └── tools/                  # Function calling tools
+│   │           ├── availability_tool.py
+│   │           ├── booking_tool.py
+│   │           └── cancellation_tool.py
+│   ├── scripts/
+│   │   └── verify_backend.py           # Verification script for live server endpoints
+│   └── tests/                          # 51 automated Pytest suites
+│       ├── conftest.py
+│       ├── test_health.py
+│       ├── test_models.py
+│       ├── test_seed.py
+│       ├── test_phone_utils.py
+│       ├── test_availability_service.py
+│       ├── test_appointment_service.py
+│       ├── test_concurrency.py         # 10-thread parallel booking stress test
+│       ├── test_doctors_api.py
+│       ├── test_appointments_api.py
+│       ├── test_voice_tools.py
+│       ├── test_voice_session.py
+│       ├── test_voice_signaling.py
+│       ├── test_websocket_events.py    # Real-time WebSocket broadcasting test
+│       └── test_e2e_voice_flow.py      # End-to-end voice tool workflow test
+│
+├── frontend/                           # React 19 + TypeScript + Vite UI
+│   ├── package.json
+│   ├── vite.config.ts                  # Reverse proxy configurations (/api, /health)
+│   ├── tailwind.config.js              # Clinical medical color system
+│   └── src/
+│       ├── types/index.ts              # Strongly-typed data definitions
+│       ├── services/
+│       │   ├── api.ts                  # Typed REST API & WebRTC signaling client
+│       │   └── websocket.ts            # Auto-reconnecting real-time WebSocket client
+│       ├── components/
+│       │   ├── Navbar.tsx              # Navigation & Call trigger
+│       │   ├── StatsOverview.tsx       # KPI banner & metrics
+│       │   ├── DoctorDirectory.tsx     # Filterable physician directory
+│       │   ├── AppointmentsTable.tsx   # Appointments ledger & cancellation
+│       │   ├── AvailabilityViewer.tsx  # Dynamic slot availability viewer
+│       │   ├── AudioWaveform.tsx       # Web Audio API canvas frequency visualizer
+│       │   └── VoiceCallModal.tsx      # Real-time WebRTC audio call modal
+│       ├── App.tsx                     # Main layout & state coordinator
+│       └── index.css                   # Tailwind entrypoint
+│
+└── docs/                               # Architecture & audit records
+    ├── REPOSITORY_AUDIT.md
+    ├── IMPLEMENTATION_STATUS.md
+    ├── GAP_ANALYSIS.md
+    └── ENGINEERING_DECISIONS.md
+```
+
+---
+
+## Prerequisites & Environment Configuration
+
+### Required Runtimes
+- **Python**: Version `3.12+`
+- **Node.js**: Version `18.0+` (v20+ recommended)
+- **Package Managers**: `pip` and `npm`
+
+### Environment File Setup
+Create or update `.env` in the project root:
+
+```ini
+# Application Core
+PROJECT_NAME="CarePoint Health Medical Clinic"
+ENVIRONMENT="development"
+DEBUG=true
+API_V1_PREFIX="/api/v1"
+
+# Clinic Configuration
+CLINIC_NAME="CarePoint Health Medical Clinic"
+CLINIC_TIMEZONE="Asia/Kolkata"
+DEFAULT_PHONE_REGION="IN"
+CLINIC_PHONE="+1-800-555-0199"
+CLINIC_OPEN_TIME="09:00"
+CLINIC_CLOSE_TIME="17:00"
+DEFAULT_SLOT_DURATION_MIN=30
+
+# Database Configuration
+DATABASE_URL="sqlite:///./appointments.db"
+
+# CORS Configuration
+CORS_ORIGINS=["http://localhost:3000","http://localhost:5173","http://127.0.0.1:3000","http://127.0.0.1:5173"]
+
+# AI Voice Provider API Keys
+GOOGLE_API_KEY="your-google-gemini-api-key"
+GEMINI_MODEL="gemini-2.5-flash"
+ELEVENLABS_API_KEY="your-elevenlabs-api-key"
+ELEVENLABS_VOICE_ID="21m00Tcm4TlvDq8ikWAM"
+ELEVENLABS_MODEL_ID="eleven_turbo_v2_5"
+```
+
+---
+
+## Step-by-Step Local Setup & Execution
+
+### 1. Backend Installation & Startup
+
+Open a terminal in the root directory:
+
+```powershell
+# 1. Install backend dependencies
+pip install -r backend/requirements.txt
+
+# 2. Run the FastAPI development server
+python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
+```
+
+The backend starts at **http://127.0.0.1:8000**:
+- Swagger UI Docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- Health Check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+
+### 2. Frontend Installation & Startup
+
+Open a second terminal:
+
+```powershell
+# 1. Navigate to the frontend directory
+cd frontend
+
+# 2. Install dependencies (if not already done)
+npm install
+
+# 3. Start Vite development server
+npm run dev
+```
+
+Open your browser at:
+👉 **http://localhost:5173**
+
+---
+
+## API Documentation & WebSocket Endpoints
+
+### REST Endpoints Summary
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Application status and environment probe |
+| `GET` | `/api/v1/doctors` | List all doctors (supports `?speciality=` filter) |
+| `GET` | `/api/v1/doctors/{id}` | Retrieve specific doctor profile |
+| `GET` | `/api/v1/specialities` | List all unique specialties |
+| `GET` | `/api/v1/availability` | Calculate 30-min available slots by date & physician |
+| `GET` | `/api/v1/appointments` | Query appointments with pagination and filters |
+| `POST` | `/api/v1/appointments` | Book appointment with server guard checks |
+| `POST` | `/api/v1/appointments/{id}/cancel` | Cancel an existing reservation |
+| `GET` | `/api/v1/dashboard/stats` | Clinic KPI counts (doctors, confirmed, cancelled) |
+| `POST` | `/api/v1/voice/offer` | WebRTC SDP negotiation for Spoken Voice session |
+| `POST` | `/api/v1/voice/sessions/{id}/end` | Terminate active WebRTC audio session |
+
+### WebSocket Live Stream
+- **URL:** `ws://127.0.0.1:8000/api/v1/ws/events`
+- **Payload Events:**
+  - `appointment_booked`: Broadcast when an appointment is booked via voice or dashboard.
+  - `appointment_cancelled`: Broadcast when an appointment is cancelled, immediately releasing slots.
+
+---
+
+## Automated Testing & Quality Verification
+
+Run the complete 51-test suite:
+
+```powershell
+pytest backend/tests
+```
+
+### Coverage Highlights:
+- **`test_concurrency.py`**: 10 simultaneous threads attempt to book the exact same slot. Exactly 1 transaction succeeds; 9 receive typed `SLOT_TAKEN` conflicts.
+- **`test_e2e_voice_flow.py`**: Full spoken tool conversation verifying discovery, guard refusal, phone word parsing, conflict recovery, cancellation, and slot release.
+- **`test_websocket_events.py`**: Verifies real-time event broadcasting on client connections.
+- **`test_phone_utils.py`**: Spoken word normalization (`"five five five"` -> `555`), readback formatting, and masking (`***-***-4567`).
+
+---
+
+## Database Schema & Concurrency Design
+
+### Relational Schema (SQLite WAL Mode)
+
+```sql
+CREATE TABLE doctors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(120) NOT NULL,
+    speciality VARCHAR(80) NOT NULL,
+    experience_years INTEGER NOT NULL DEFAULT 1,
+    description TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT 1
+);
+
+CREATE TABLE availability (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doctor_id INTEGER NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+    appointment_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    slot_duration_min INTEGER NOT NULL DEFAULT 30,
+    availability_status VARCHAR(20) NOT NULL DEFAULT 'available'
+);
+
+CREATE TABLE appointments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doctor_id INTEGER NOT NULL REFERENCES doctors(id) ON DELETE RESTRICT,
+    patient_name VARCHAR(120),
+    patient_phone_number VARCHAR(32) NOT NULL,
+    appointment_date DATE NOT NULL,
+    appointment_time TIME NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'confirmed',
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Concurrency protection: guarantees zero double-booking at database engine level
+CREATE UNIQUE INDEX uq_active_slot ON appointments (doctor_id, appointment_date, appointment_time)
+WHERE status = 'confirmed';
+```
+
+---
+
+## Troubleshooting & Common Questions
+
+1. **"Audio not working or call fails immediately"**
+   - Ensure you granted microphone permissions in your browser.
+   - Verify `GOOGLE_API_KEY` and `ELEVENLABS_API_KEY` are valid and present in `.env`.
+   - Ensure the backend is reachable at `http://127.0.0.1:8000`.
+
+2. **"UnknownTimeZoneError on Windows"**
+   - The application automatically normalizes Windows timezone strings (e.g., `"India Standard Time"`) to standard IANA identifiers (`"Asia/Kolkata"`). If configuring manually, prefer IANA names in `.env`.
+
+3. **"Can I deploy with PostgreSQL instead of SQLite?"**
+   - Yes. The SQLAlchemy models and transactional queries are compatible with PostgreSQL. Change `DATABASE_URL="postgresql://user:pass@host:5432/db"` in `.env`.
+
+---
+
+## License & Support
+Developed for **CarePoint Health Medical Clinic**. Built using Pipecat AI, Google Gemini, ElevenLabs, and FastAPI.
