@@ -127,7 +127,7 @@ export const api = {
     message: string,
     sessionId?: string,
     history?: Array<{ role: string; text: string }>
-  ): Promise<{ session_id: string; response_text: string; appointment_updated: boolean; tools_called: string[] }> {
+  ): Promise<{ session_id: string; response_text: string; appointment_updated: boolean; tools_called: string[]; current_state?: string }> {
     return fetchJson(`${API_BASE}/voice/interact`, {
       method: 'POST',
       body: JSON.stringify({

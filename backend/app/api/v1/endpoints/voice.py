@@ -96,6 +96,7 @@ class VoiceInteractResponse(BaseModel):
     response_text: str
     appointment_updated: bool = False
     tools_called: List[str] = []
+    current_state: Optional[str] = "LISTENING"
 
 
 @router.post(
@@ -126,5 +127,6 @@ def voice_interact(payload: VoiceInteractRequest, db: Session = Depends(get_db))
         response_text=result["response_text"],
         appointment_updated=result.get("appointment_updated", False),
         tools_called=result.get("tools_called", []),
+        current_state=result.get("current_state", "LISTENING"),
     )
 

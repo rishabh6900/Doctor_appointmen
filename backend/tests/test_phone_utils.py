@@ -55,3 +55,34 @@ def test_mask_phone_number():
     """Test privacy masking displays only the last 4 digits."""
     masked = mask_phone_number("+15551234567")
     assert masked == "***-***-4567"
+
+
+def test_yeh_and_zero_vs_o_extraction():
+    """Test 'Yeh 7860634479' with zero vs 'O'."""
+    from app.core.phone_utils import (
+        clean_spoken_phone_input,
+        format_phone_digit_by_digit,
+        generate_phone_confirmation_prompt,
+        is_phone_correction,
+    )
+    # User says 'Yeh 7860634479'
+    valid, e164, err = normalize_spoken_phone_number("Yeh 7860634479", default_region="IN")
+    assert valid is True
+    assert e164 == "+917860634479"
+
+    # User says with 'o' instead of 0
+    valid2, e164_2, _ = normalize_spoken_phone_number("7 8 6 o 6 3 4 4 7 9", default_region="IN")
+    assert valid2 is True
+    assert e164_2 == "+917860634479"
+
+    # Digit-by-digit format: '7-8-6-0-6-3-4-4-7-9'
+    digit_format = format_phone_digit_by_digit(e164)
+    assert digit_format == "7-8-6-0-6-3-4-4-7-9"
+
+    # Confirmation prompt
+    prompt = generate_phone_confirmation_prompt(e164)
+    assert prompt == "I heard 7-8-6-0-6-3-4-4-7-9. Is that correct?"
+
+    # Correction detection
+    assert is_phone_correction("Yes, but it's zero, not O") is True
+    assert is_phone_correction("Yes that is correct") is False

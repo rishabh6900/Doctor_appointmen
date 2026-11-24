@@ -43,6 +43,7 @@ export const VoiceCallModal = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<CallTranscriptMessage[]>([]);
   const [callDuration, setCallDuration] = useState(0);
+  const [fsmState, setFsmState] = useState<string>('LISTENING');
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -129,6 +130,9 @@ export const VoiceCallModal = ({
 
       const res = await api.sendVoiceInteract(cleanText, sessionIdRef.current || undefined, history);
       sessionIdRef.current = res.session_id;
+      if (res.current_state) {
+        setFsmState(res.current_state);
+      }
 
       const aiMsg: CallTranscriptMessage = {
         id: Math.random().toString(),
@@ -423,6 +427,11 @@ export const VoiceCallModal = ({
                 ></span>
                 <span className="capitalize">{callState}</span>
                 {callState === 'connected' && ` • ${formatDuration(callDuration)}`}
+                {callState === 'connected' && fsmState && fsmState !== 'LISTENING' && (
+                  <span className="bg-teal-800/80 text-teal-100 text-[10px] px-2 py-0.5 rounded-full font-medium ml-1 capitalize">
+                    {fsmState.replace(/_/g, ' ').toLowerCase()}
+                  </span>
+                )}
                 {isAssistantSpeaking && (
                   <span className="flex items-center gap-1 text-emerald-300 ml-1">
                     <Volume2 className="w-3.5 h-3.5 animate-pulse" /> Speaking

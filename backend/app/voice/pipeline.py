@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.database.session import SessionLocal
 from app.voice.prompts import get_system_prompt
 from app.voice.session_manager import VoiceSession, voice_session_manager
+from app.voice.conversation_state import conversation_state_manager
 from app.voice.tools import (
     VOICE_TOOLS,
     execute_check_doctor_availability,
@@ -42,6 +43,7 @@ async def create_voice_pipeline_session(
     Browser Mic (WebRTC) -> Silero VAD -> ElevenLabs STT -> Google Gemini LLM (with 3 tools) -> ElevenLabs TTS -> Browser Speaker (WebRTC)
     """
     session = voice_session_manager.create_session(session_id)
+    state = conversation_state_manager.get_or_create(session.session_id)
 
     # 1. Initialize WebRTC Peer Connection and generate Answer
     webrtc_conn = SmallWebRTCConnection()
@@ -102,7 +104,11 @@ async def create_voice_pipeline_session(
                 speciality=args.get("speciality"),
                 appointment_date=args.get("appointment_date"),
             )
+            state.last_tool_result = result
             session.touch()
+            if result.get("status") == "cancelled":
+                state.cancellation_confirmation = True
+                state.cancelled_appointment_id = result.get("appointment_id")
             await result_callback(result)
         finally:
             doc_db.close()
@@ -125,6 +131,10 @@ async def create_voice_pipeline_session(
             session.touch()
             if result.get("status") == "confirmed":
                 session.patient_phone = result.get("patient_phone_number")
+                state.patient_phone = result.get("patient_phone_number")
+                state.phone_confirmed = True
+                state.booking_confirmation = True
+                state.booked_appointment_id = result.get("booking_id")
             await result_callback(result)
         finally:
             doc_db.close()
@@ -142,6 +152,9 @@ async def create_voice_pipeline_session(
                 action_confirmed=args.get("action_confirmed", False),
             )
             session.touch()
+            if result.get("status") == "cancelled":
+                state.cancellation_confirmation = True
+                state.cancelled_appointment_id = result.get("appointment_id")
             await result_callback(result)
         finally:
             doc_db.close()

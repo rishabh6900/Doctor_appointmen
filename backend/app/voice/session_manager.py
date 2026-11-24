@@ -82,6 +82,11 @@ class VoiceSessionManager:
             session.runner_task.cancel()
 
         self.sessions.pop(session_id, None)
+        try:
+            from app.voice.conversation_state import conversation_state_manager
+            conversation_state_manager.remove(session_id)
+        except Exception:
+            pass
 
     def list_active_sessions(self) -> list:
         """List summary of active call sessions."""
