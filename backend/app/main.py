@@ -10,6 +10,7 @@ from app.database.session import Base, engine, SessionLocal
 from app.database.seed import seed_database
 from app.api.v1.router import api_router
 from app.api.v1.endpoints.health import router as root_health_router
+from app.api.v1.endpoints.voice import router as root_voice_router
 
 # Configure logging
 logging.basicConfig(
@@ -60,4 +61,5 @@ app.add_middleware(
 
 # Mount root health check and API v1 router
 app.include_router(root_health_router)  # Accessible at /health
+app.include_router(root_voice_router)  # Accessible directly at /voice/*
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)  # Accessible at /api/v1/*

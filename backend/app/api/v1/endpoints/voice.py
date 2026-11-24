@@ -104,6 +104,12 @@ class VoiceInteractResponse(BaseModel):
     status_code=status.HTTP_200_OK,
     summary="Process conversational voice speech interaction",
 )
+@router.post(
+    "/interact/",
+    response_model=VoiceInteractResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
 def voice_interact(payload: VoiceInteractRequest, db: Session = Depends(get_db)):
     """
     Process patient speech input, invoke clinic tools (availability check, booking, cancellation),
