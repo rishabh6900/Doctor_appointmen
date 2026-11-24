@@ -43,11 +43,11 @@ class VoiceInteractionService:
         now = time.time()
         clean_msg = message.strip()
 
-        # Idempotency Guard: Suppress identical utterance duplicates within 1.5s window
+        # Idempotency Guard: Suppress identical utterance duplicates within 3.0s window
         if (
             state.last_processed_utterance
             and state.last_processed_utterance.lower() == clean_msg.lower()
-            and (now - state.last_processed_time) < 1.5
+            and (now - state.last_processed_time) < 3.0
             and state.last_response_text
         ):
             logger.info(f"[{session.session_id}] Duplicate utterance suppressed: '{clean_msg}'")
@@ -114,7 +114,7 @@ class VoiceInteractionService:
 
         # Cache response for duplicate suppression
         state.last_processed_utterance = clean_msg
-        state.last_processed_time = now
+        state.last_processed_time = time.time()
         state.last_response_text = response_text
 
         return {

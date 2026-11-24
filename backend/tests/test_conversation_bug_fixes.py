@@ -186,8 +186,8 @@ class TestConversationBugFixes:
 
         res1 = service.interact("Hello", session_id=session_id)
         state = conversation_state_manager.get(session_id)
-        # Advance last processed time by 2.0 seconds to simulate natural pause
-        state.last_processed_time -= 2.0
+        # Advance last processed time by 4.0 seconds to simulate natural pause beyond 3s window
+        state.last_processed_time -= 4.0
 
         res2 = service.interact("Hello", session_id=session_id)
         assert res2["response_text"] is not None
