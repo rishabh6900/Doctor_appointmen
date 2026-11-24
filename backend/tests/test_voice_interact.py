@@ -1,10 +1,16 @@
 """Tests for the /api/v1/voice/interact conversational endpoint."""
 
+from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 
-def test_voice_interact_availability(client: TestClient, seeded_db):
+@patch("app.voice.interaction_service.genai.Client")
+def test_voice_interact_availability(mock_client, client: TestClient, seeded_db):
     """Test voice interact handles availability inquiry."""
+    mock_instance = MagicMock()
+    mock_instance.models.generate_content.return_value = MagicMock(text="Dr. Sarah Jenkins is available tomorrow at 09:00 AM, 09:30 AM, and 10:00 AM.")
+    mock_client.return_value = mock_instance
+
     payload = {
         "message": "Is Dr. Sarah Jenkins available tomorrow?",
         "history": [],
@@ -30,8 +36,13 @@ def test_voice_interact_emergency_safeguard(client: TestClient, seeded_db):
     assert data["appointment_updated"] is False
 
 
-def test_voice_interact_general_greeting(client: TestClient, seeded_db):
+@patch("app.voice.interaction_service.genai.Client")
+def test_voice_interact_general_greeting(mock_client, client: TestClient, seeded_db):
     """Test voice interact welcomes callers politely."""
+    mock_instance = MagicMock()
+    mock_instance.models.generate_content.return_value = MagicMock(text="Hello! Welcome to CarePoint Health Clinic. How can I help you today?")
+    mock_client.return_value = mock_instance
+
     payload = {
         "message": "Hello, good morning!",
     }

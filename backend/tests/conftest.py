@@ -38,16 +38,16 @@ def setup_test_db():
 
 @pytest.fixture(scope="function")
 def db_session():
-    """Yield a transactional database session per test function with automatic rollback."""
-    connection = test_engine.connect()
-    transaction = connection.begin()
-    session = TestingSessionLocal(bind=connection)
-
-    yield session
-
-    session.close()
-    transaction.rollback()
-    connection.close()
+    """Yield an isolated database session per test function with clean state between runs."""
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.rollback()
+        for table in reversed(Base.metadata.sorted_tables):
+            session.execute(table.delete())
+        session.commit()
+        session.close()
 
 
 @pytest.fixture(scope="function")

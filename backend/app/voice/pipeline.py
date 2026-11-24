@@ -19,6 +19,7 @@ from app.services.availability_service import AvailabilityService
 
 # Pipecat framework imports
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.processors.audio.vad_processor import VADProcessor
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineTask, PipelineParams
@@ -44,12 +45,17 @@ async def create_voice_pipeline_session(
     """
     session = voice_session_manager.create_session(session_id)
     state = conversation_state_manager.get_or_create(session.session_id)
+    logger.info(f"[{session.session_id}] Initializing Pipecat voice pipeline session")
 
     # 1. Initialize WebRTC Peer Connection and generate Answer
     webrtc_conn = SmallWebRTCConnection()
     await webrtc_conn.initialize(sdp=sdp_offer, type="offer")
     answer_dict = webrtc_conn.get_answer()
-    sdp_answer = answer_dict["sdp"] if isinstance(answer_dict, dict) else str(answer_dict)
+    if not answer_dict or not isinstance(answer_dict, dict) or "sdp" not in answer_dict:
+        logger.error(f"[{session.session_id}] WebRTC answer generation returned invalid payload: {answer_dict}")
+        raise RuntimeError("Failed to generate WebRTC SDP answer: SmallWebRTCConnection returned no valid SDP.")
+    sdp_answer = str(answer_dict["sdp"])
+    logger.info(f"[{session.session_id}] WebRTC SDP answer generated successfully")
 
     # 2. Configure SmallWebRTCTransport
     transport_params = TransportParams(
@@ -64,8 +70,10 @@ async def create_voice_pipeline_session(
     )
     session.transport = transport
 
-    # 3. Configure Silero VAD
+    # 3. Configure Silero VAD & VADProcessor
     vad = SileroVADAnalyzer(sample_rate=16000)
+    vad_processor = VADProcessor(vad_analyzer=vad)
+    logger.info(f"[{session.session_id}] Silero VAD analyzer and VADProcessor initialized")
 
     # 4. Configure ElevenLabs Speech-to-Text (STT) safely
     stt = None
@@ -177,12 +185,21 @@ async def create_voice_pipeline_session(
             tts = None
 
     # 7. Build Pipeline
-    processors = [transport.input()]
+    processors = [transport.input(), vad_processor]
     if stt:
         processors.append(stt)
+        logger.info(f"[{session.session_id}] ElevenLabs STT service connected to pipeline")
+    else:
+        logger.info(f"[{session.session_id}] Running pipeline with browser client-side transcription bridge")
+
     processors.append(llm)
+
     if tts:
         processors.append(tts)
+        logger.info(f"[{session.session_id}] ElevenLabs TTS service connected to pipeline")
+    else:
+        logger.info(f"[{session.session_id}] Running pipeline with client-side speech synthesis bridge")
+
     processors.append(transport.output())
 
     pipeline = Pipeline(processors)

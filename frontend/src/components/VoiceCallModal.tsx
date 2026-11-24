@@ -54,6 +54,9 @@ export const VoiceCallModal = ({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<any>(null);
   const isCallActiveRef = useRef(false);
+  const speechSafetyTimerRef = useRef<number | null>(null);
+  const silenceTimerRef = useRef<number | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -85,8 +88,13 @@ export const VoiceCallModal = ({
   // Speak assistant response aloud using Web Speech Synthesis
   const speakText = (text: string) => {
     if ('speechSynthesis' in window) {
+      if (speechSafetyTimerRef.current) {
+        clearTimeout(speechSafetyTimerRef.current);
+        speechSafetyTimerRef.current = null;
+      }
       window.speechSynthesis.cancel(); // cancel any ongoing speech
       const utterance = new SpeechSynthesisUtterance(text);
+      utteranceRef.current = utterance;
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
       utterance.lang = 'en-US';
@@ -96,9 +104,22 @@ export const VoiceCallModal = ({
       const preferred = voices.find((v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha')));
       if (preferred) utterance.voice = preferred;
 
-      utterance.onstart = () => setIsAssistantSpeaking(true);
-      utterance.onend = () => setIsAssistantSpeaking(false);
-      utterance.onerror = () => setIsAssistantSpeaking(false);
+      const resetSpeaking = () => {
+        setIsAssistantSpeaking(false);
+        if (speechSafetyTimerRef.current) {
+          clearTimeout(speechSafetyTimerRef.current);
+          speechSafetyTimerRef.current = null;
+        }
+      };
+
+      utterance.onstart = () => {
+        setIsAssistantSpeaking(true);
+        // Safety timeout so assistant speech never permanently mutes caller mic
+        const maxDurationMs = Math.min(15000, Math.max(3000, text.length * 80));
+        speechSafetyTimerRef.current = window.setTimeout(resetSpeaking, maxDurationMs);
+      };
+      utterance.onend = resetSpeaking;
+      utterance.onerror = resetSpeaking;
 
       window.speechSynthesis.speak(utterance);
     }
@@ -192,11 +213,26 @@ export const VoiceCallModal = ({
         }
       }
 
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
       if (interim) {
         setInterimText(interim);
+        // Silence debounce: dispatch if caller stops speaking and browser delays isFinal
+        silenceTimerRef.current = window.setTimeout(() => {
+          if (interim.trim() && !isProcessing) {
+            handleUserMessage(interim);
+          }
+        }, 1200);
       }
 
       if (finalTranscript.trim()) {
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
         handleUserMessage(finalTranscript);
       }
     };
@@ -331,6 +367,15 @@ export const VoiceCallModal = ({
 
   const cleanupMedia = () => {
     isCallActiveRef.current = false;
+    setIsAssistantSpeaking(false);
+    if (speechSafetyTimerRef.current) {
+      clearTimeout(speechSafetyTimerRef.current);
+      speechSafetyTimerRef.current = null;
+    }
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
