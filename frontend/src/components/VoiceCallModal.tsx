@@ -155,11 +155,36 @@ export const VoiceCallModal = ({
       });
       await pc.setLocalDescription(offer);
 
+      // Wait for ICE gathering to complete so all candidates and credentials are in the SDP
+      if (pc.iceGatheringState !== 'complete') {
+        await new Promise<void>((resolve) => {
+          const checkIceState = () => {
+            if (pc.iceGatheringState === 'complete') {
+              pc.removeEventListener('icegatheringstatechange', checkIceState);
+              resolve();
+            }
+          };
+          pc.addEventListener('icegatheringstatechange', checkIceState);
+          // Safety timeout after 1200ms
+          setTimeout(() => {
+            pc.removeEventListener('icegatheringstatechange', checkIceState);
+            resolve();
+          }, 1200);
+        });
+      }
+
       setCallState('ringing');
 
+      const sdpToSend = pc.localDescription?.sdp || offer.sdp || '';
+
       // Send offer to FastAPI backend
-      const response = await api.sendVoiceOffer(offer.sdp || '', offer.type);
+      const response = await api.sendVoiceOffer(sdpToSend, offer.type);
       sessionIdRef.current = response.session_id;
+
+      // Check if PC was closed while waiting
+      if (!pcRef.current || pc.signalingState === 'closed') {
+        return;
+      }
 
       // Set backend answer
       await pc.setRemoteDescription({
