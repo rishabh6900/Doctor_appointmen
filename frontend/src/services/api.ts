@@ -14,7 +14,15 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     let errorDetail = 'API request failed';
     try {
       const errorJson = await res.json();
-      errorDetail = errorJson.detail || errorJson.message || JSON.stringify(errorJson);
+      if (typeof errorJson.detail === 'string') {
+        errorDetail = errorJson.detail;
+      } else if (errorJson.detail && typeof errorJson.detail === 'object') {
+        errorDetail = errorJson.detail.message || JSON.stringify(errorJson.detail);
+      } else if (errorJson.message) {
+        errorDetail = errorJson.message;
+      } else {
+        errorDetail = JSON.stringify(errorJson);
+      }
     } catch {
       errorDetail = `Status code ${res.status}: ${res.statusText}`;
     }
@@ -87,12 +95,12 @@ export const api = {
     return res.items || [];
   },
 
-  async cancelAppointment(appointmentId: number, patientPhone: string, reason?: string): Promise<Appointment> {
+  async cancelAppointment(appointmentId: number, patientPhone: string, _reason?: string): Promise<Appointment> {
     return fetchJson(`${API_BASE}/appointments/${appointmentId}/cancel`, {
       method: 'POST',
       body: JSON.stringify({
-        patient_phone: patientPhone,
-        reason: reason || 'Cancelled via clinical dashboard',
+        patient_phone_number: patientPhone,
+        phone_readback_confirmed: true,
         action_confirmed: true,
       }),
     });
