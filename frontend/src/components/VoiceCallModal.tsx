@@ -58,14 +58,39 @@ export const VoiceCallModal = ({
   const silenceTimerRef = useRef<number | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+
+  // Deterministically select and lock ONE consistent, pleasant voice for the entire call
+  const getOrSelectVoice = (): SpeechSynthesisVoice | null => {
+    if (selectedVoiceRef.current) return selectedVoiceRef.current;
+    if (!('speechSynthesis' in window)) return null;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
+    // Preference: Modern natural voices -> Google English -> Pleasant en-US female voices
+    const chosen =
+      voices.find((v) => v.lang === 'en-US' && (v.name.includes('Natural') || v.name.includes('Online'))) ||
+      voices.find((v) => v.name.includes('Google US English') || v.name.includes('Google UK English Female')) ||
+      voices.find((v) => v.name.includes('Zira') || v.name.includes('Jenny') || v.name.includes('Samantha') || v.name.includes('Victoria')) ||
+      voices.find((v) => v.lang === 'en-US') ||
+      voices.find((v) => v.lang.startsWith('en')) ||
+      voices[0];
+
+    if (chosen) {
+      selectedVoiceRef.current = chosen;
+    }
+    return chosen;
+  };
 
   // Preload and cache speech synthesis voices on mount
   useEffect(() => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
+      const initVoices = () => {
+        getOrSelectVoice();
       };
+      initVoices();
+      window.speechSynthesis.onvoiceschanged = initVoices;
     }
   }, []);
 
@@ -96,7 +121,7 @@ export const VoiceCallModal = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Speak assistant response aloud using Web Speech Synthesis
+  // Speak assistant response aloud using consistent, natural voice parameters
   const speakText = (text: string) => {
     if (!('speechSynthesis' in window)) return;
 
@@ -117,22 +142,15 @@ export const VoiceCallModal = ({
       try {
         const utterance = new SpeechSynthesisUtterance(text);
         utteranceRef.current = utterance;
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
+        
+        // Pacing: 0.93 rate + 1.05 pitch sounds human, warm, and natural
+        utterance.rate = 0.93;
+        utterance.pitch = 1.05;
         utterance.lang = 'en-US';
 
-        const voices = window.speechSynthesis.getVoices();
-        if (voices && voices.length > 0) {
-          const preferred = voices.find(
-            (v) =>
-              v.lang.startsWith('en') &&
-              (v.name.includes('Natural') ||
-                v.name.includes('Google') ||
-                v.name.includes('Samantha') ||
-                v.name.includes('Jenny') ||
-                v.name.includes('Guy'))
-          );
-          if (preferred) utterance.voice = preferred;
+        const lockedVoice = getOrSelectVoice();
+        if (lockedVoice) {
+          utterance.voice = lockedVoice;
         }
 
         const resetSpeaking = () => {
@@ -145,7 +163,7 @@ export const VoiceCallModal = ({
 
         utterance.onstart = () => {
           setIsAssistantSpeaking(true);
-          const maxDurationMs = Math.min(15000, Math.max(3000, text.length * 85));
+          const maxDurationMs = Math.min(15000, Math.max(3000, text.length * 90));
           speechSafetyTimerRef.current = window.setTimeout(resetSpeaking, maxDurationMs);
         };
         utterance.onend = resetSpeaking;
@@ -405,7 +423,17 @@ export const VoiceCallModal = ({
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         },
       ]);
-      speakText(welcomeText);
+
+      // Ensure the voice lock is loaded so greeting uses the exact same voice as subsequent turns
+      const voice = getOrSelectVoice();
+      if (voice) {
+        speakText(welcomeText);
+      } else {
+        setTimeout(() => {
+          getOrSelectVoice();
+          speakText(welcomeText);
+        }, 120);
+      }
 
     } catch (err: unknown) {
       console.error('Call establishment error:', err);
